@@ -1136,8 +1136,15 @@ on('gsTest','click',()=>{
 });
 on('gsCopy','click',()=>{
   const code=$('#gsCode').textContent;
-  if(navigator.clipboard){navigator.clipboard.writeText(code).then(()=>toast('📋 تم نسخ كود Apps Script')).catch(()=>toast('حدد الكود بخط اليد وانسخه','warn'));}
-  else toast('حدد الكود بخط اليد وانسخه','warn');
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(code).then(()=>toast('📋 تم نسخ كود Apps Script ( dodge :'+code.split('\n').length+' سطر فقط — كده صح)')).catch(()=>toast('حدد الكود بخط اليد وانسخه','warn'));
+  }
+  else {
+    // احتياط: اختيار الكود كله داخل الشاشة لنسخ يدوي
+    const range=document.createRange();range.selectNodeContents($('#gsCode'));
+    const sel=window.getSelection();sel.removeAllRanges();sel.addRange(range);
+    toast('حدد الكود ظاهر مظلل — اضغط Ctrl+C','warn');
+  }
 });
 
 /* ============================================================
