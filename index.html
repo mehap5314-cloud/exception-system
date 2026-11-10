@@ -207,6 +207,7 @@
   </nav>
   <div class="top-actions">
     <button class="btn" id="gsBtn">📄 ربط Google Sheet</button>
+    <button class="btn" id="gsPull" title="جلب كل السجلات من الشيت مسجلة في هذه الصفحة">⬇ جلب السجلات من الشيت</button>
     <span id="gsPend" class="p p-amber" style="display:none;align-self:center;cursor:pointer" title="سجلات في انتظار المزامنة — اضغط للفتح">⏳ 0</span>
     <button class="btn" id="exportBtn">⬇ تصدير Excel</button>
     <label class="btn" for="importFile">⬆ استيراد Excel</label>
@@ -453,6 +454,68 @@ function doPost(e) {
       writeRows(CFG.emp, data.emp);
       writeRows(CFG.prod, data.prod);
     }
+    out.ok = true;
+  } catch (err) { out.err = String(err); }
+  return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function doGet(e) {
+  var out = { ok: false, err: "", data: { exc: [], emp: [], prod: [] } };
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss) { out.err = "NOT-BOUND"; return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON); }
+    var CFG = {
+      exc: { eng: "Excibsons", arb: "الأكسبشن",
+        map: [ ["date", ["Date","التاريخ","تاريخ الفتح"]],
+               ["agent", ["Agent","الموظف","اسم الموظف"]],
+               ["contact", ["Contact Number","رقم التواصل","رقم العميل"]],
+               ["issue", ["Issue","المشكلة","نوع المشكلة"]],
+               ["exctype", ["Excibsons","Exceptions","الأكسبشن"]],
+               ["desc", ["Description","الوصف","تفاصيل"]],
+               ["amount", ["Amount Refund","مبلغ الاسترداد"]] ] },
+      emp: { eng: "Employee Issues", arb: "مشكلة موظف",
+        map: [ ["entryDate", ["Date","التاريخ"]],
+               ["name", ["Customer","اسم العميل","العميل"]],
+               ["phone", ["Customer Number","رقم العميل"]],
+               ["mobileType", ["Mobile Type","نوع الموبايل"]],
+               ["branch", ["Branch","الفرع"]],
+               ["agent", ["Employee Name","اسم الموظف","الموظف"]],
+               ["complaint", ["Complaint","الشكوي","الشكوى","وصف الشكوي"]] ] },
+      prod: { eng: "Product Issues", arb: "مشكلة منتج",
+        map: [ ["name", ["Customer","العميل","اسم العميل"]],
+               ["mobileType", ["Mobile Type","نوع الموبايل"]],
+               ["mobileNum", ["Mobile Number","رقم الموبايل","IMEI"]],
+               ["product", ["Product","المنتج"]],
+               ["purchase", ["Purchase Date","تاريخ الشراء"]],
+               ["desc", ["Problem","الوصف","المشكلة"]],
+               ["entryDate", ["Recorded On","تاريخ التسجيل"]] ] }
+    };
+    function readRows(cfg) {
+      var s = ss.getSheetByName(cfg.eng) || ss.getSheetByName(cfg.arb);
+      if (!s || s.getLastRow() < 2) return [];
+      var cols = s.getLastColumn();
+      var headers = s.getRange(1, 1, 1, cols).getValues()[0];
+      var layout = [];
+      cfg.map.forEach(function (item) {
+        var alts = item[1], col = 0;
+        for (var i = 0; i !== headers.length; i++) {
+          var h = String(headers[i]).trim();
+          for (var j = 0; j !== alts.length; j++) { if (h === alts[j]) { col = i + 1; break; } }
+          if (col) break;
+        }
+        if (col) layout.push([item[0], col]);
+      });
+      var values = s.getRange(2, 1, s.getLastRow() - 1, cols).getValues();
+      return values.map(function (row) {
+        var rec = {};
+        layout.forEach(function (p) { rec[p[0]] = row[p[1] - 1]; });
+        if (rec.amount !== undefined && rec.amount !== "") rec.amount = Number(rec.amount) || 0;
+        return rec;
+      }).filter(function (r) { return Object.keys(r).some(function (k) { return String(r[k] || "").trim() !== ""; }); });
+    }
+    out.data.exc = readRows(CFG.exc);
+    out.data.emp = readRows(CFG.emp);
+    out.data.prod = readRows(CFG.prod);
     out.ok = true;
   } catch (err) { out.err = String(err); }
   return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
@@ -999,8 +1062,7 @@ function pushRec(type,rec){
 }
 function syncAll(){
   const url=sheetURL();
-  if(!url){toast('⚠️ اربط Google Sheet الأول','warn');return;}
-  const pendE=exc.filter(r=>!r._synced),pendM=emp.filter(r=>!r._synced),pendP=prod.filter(r=>!r._synced);
+  if(!url){toast('⚠️ اربط Google Sheet الأول','warn');return;}  const pendE=exc.filter(r=>!r._synced),pendM=emp.filter(r=>!r._synced),pendP=prod.filter(r=>!r._synced);
   const total=pendE.length+pendM.length+pendP.length;
   if(!total){toast('✔ كله متزامن بالفعل');return;}
   toast('⟳ جاري مزامنة '+total+' سجل...');
@@ -1170,6 +1232,47 @@ function hxDate(v){
    التشغيل
 ============================================================ */
 loadLS();
+/* جلب السجلات من الشيت تلقائيًا عند فتح الموقع من أي جهاز — عشان السجل يظهر مكان ما تفتح */
+function signatureOf(type,r){
+  if(type==='exc')return [r.date,r.agent,r.contact,r.issue,r.exctype,r.amount,r.desc].join('§');
+  if(type==='emp')return [r.entryDate,r.name,r.phone,r.mobileType,r.branch,r.agent,r.complaint].join('§');
+  return [r.name,r.mobileType,r.mobileNum,r.product,r.purchase,r.desc,r.entryDate].join('§');
+}
+function gsPullAll(silent){
+  const url=sheetURL();
+  if(!url){if(!silent)toast('⚠️ اربط Google Sheet الأول','warn');return;}
+  if(!silent)toast('⟳ بجلب السجلات من الشيت...');
+  fetch(url,{method:'GET'})
+    .then(r=>r.text().then(t=>({status:r.status,t})))
+    .then(({status,t})=>{
+      let d=null;try{d=JSON.parse(t);}catch(_){}
+      if(!d||!d.ok){
+        if(/<!DOCTYPE|<html/i.test(t.slice(0,200))){if(!silent)toast('⚠️ الشيت رجّع HTML — لازم تحدث كود Apps Script ثم New version','warn');}
+        else if(!silent)toast('⚠️ رد غير متوقع من الشيت','warn');
+        return;
+      }
+      const add=[];
+      const sigE=new Set(exc.map(r=>signatureOf('exc',r)));
+      const sigM=new Set(emp.map(r=>signatureOf('emp',r)));
+      const sigP=new Set(prod.map(r=>signatureOf('prod',r)));
+      (d.data&&d.data.exc||[]).forEach(r=>{const s=signatureOf('exc',r);if(!sigE.has(s)){sigE.add(s);add.push(['exc',Object.assign({id:genId(),_synced:true},r)]);}});
+      (d.data&&d.data.emp||[]).forEach(r=>{const s=signatureOf('emp',r);if(!sigM.has(s)){sigM.add(s);add.push(['emp',Object.assign({id:genId(),_synced:true},r)]);}});
+      (d.data&&d.data.prod||[]).forEach(r=>{const s=signatureOf('prod',r);if(!sigP.has(s)){sigP.add(s);add.push(['prod',Object.assign({id:genId(),_synced:true},r)]);}});
+      add.forEach(p=>{({exc:exc,emp:emp,prod:prod})[p[0]].push(p[1]);});
+      if(add.length){
+        exc.sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+        emp.sort((a,b)=>String(b.entryDate||'').localeCompare(String(a.entryDate||'')));
+        prod.sort((a,b)=>String(b.entryDate||'').localeCompare(String(a.entryDate||'')));
+        saveLS();renderTables();renderAnalysis();updateGsUI();
+        toast('⬇ استوردت '+add.length+' سجل من Google Sheet');
+      }else if(!silent)toast('✔ السجلات محدثة بالفعل — الشيت فيه كل حاجة');
+    })
+    .catch(()=>{if(!silent)toast('⚠️ مفيش اتصال بالشيت — السجلات المحلية باقية','warn');});
+}
+on('gsPull','click',()=>gsPullAll(false));
+try{
+  if(localStorage.getItem(LS.gs))setTimeout(()=>gsPullAll(true),1200);
+}catch(_){}
 /* ربط سريع للموبايل: افتح اللينك مرة واحدة بالشكل ?gs=<رابط الويب آب> — يتحفظ تلقائيًا */
 try{
   const _q=new URLSearchParams(location.search).get('gs');
