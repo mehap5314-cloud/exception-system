@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>لوحة تحليل البيانات — الشكاوى والفيدباك</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&family=Outfit:wght@500;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#070b14; --bg2:#0a1020;
+    --card:#0f1626; --card2:#121a2e;
+    --line:#1e2a44; --line2:#27355a;
+    --text:#e8edf7; --muted:#8ea0c0;
+    --blue:#5b8cff; --green:#2fbf71; --red:#ef4444;
+    --purple:#a855f7; --amber:#f59e0b; --cyan:#22d3ee; --pink:#ec4899;
+    --grad1:linear-gradient(135deg,#5b8cff,#7c5cff);
+    --grad2:linear-gradient(135deg,#2fbf71,#22d3ee);
+    --grad3:linear-gradient(135deg,#f59e0b,#ef4444);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:radial-gradient(1200px 500px at 85% -10%, rgba(91,140,255,.09), transparent),
+               radial-gradient(900px 450px at 10% -10%, rgba(168,85,247,.07), transparent),
+               var(--bg);
+    color:var(--text); font-family:'Tajawal','Segoe UI',sans-serif; min-height:100vh;
+  }
+  /* ===== Top bar ===== */
+  .topbar{
+    position:sticky; top:0; z-index:50;
+    display:flex; align-items:center; gap:22px; flex-wrap:wrap;
+    padding:14px 28px; background:rgba(10,15,28,.82); backdrop-filter:blur(14px);
+    border-bottom:1px solid var(--line);
+  }
+  .brand{display:flex; align-items:center; gap:12px}
+  .logo{
+    width:44px; height:44px; border-radius:14px; display:grid; place-items:center;
+    background:var(--grad1); font-size:1.3rem; box-shadow:0 6px 18px rgba(91,140,255,.35);
+  }
+  .brand h1{font-size:1.05rem; font-weight:800}
+  .brand p{font-size:.72rem; color:var(--muted)}
+  .tabs{display:flex; gap:6px; background:var(--bg2); border:1px solid var(--line); padding:5px; border-radius:14px}
+  .tab{
+    border:0; background:transparent; color:var(--muted); font-family:inherit; font-weight:700;
+    padding:9px 20px; border-radius:10px; cursor:pointer; font-size:.9rem; transition:.25s;
+  }
+  .tab:hover{color:var(--text)}
+  .tab.active{background:var(--grad1); color:#fff; box-shadow:0 4px 14px rgba(91,140,255,.35)}
+  .top-actions{display:flex; align-items:center; gap:10px; margin-inline-start:auto; flex-wrap:wrap}
+  .btn{
+    border:1px solid var(--line2); background:var(--bg2); color:var(--text); font-family:inherit; font-weight:700;
+    padding:9px 16px; border-radius:11px; cursor:pointer; font-size:.85rem; transition:.2s; display:inline-flex; align-items:center; gap:7px;
+  }
+  .btn:hover{border-color:var(--blue)}
+  .btn.primary{background:var(--grad1); border:none; box-shadow:0 4px 14px rgba(91,140,255,.35)}
+  .badge{font-size:.72rem; font-weight:700; padding:6px 12px; border-radius:999px;
+    background:rgba(245,158,11,.12); color:#fbbf24; border:1px solid rgba(245,158,11,.3)}
+  .badge.real{background:rgba(47,191,113,.12); color:#4ade80; border-color:rgba(47,191,113,.35)}
+  /* ===== Filters ===== */
+  .filterbar{
+    display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;
+    margin:18px 28px; padding:14px 18px; background:var(--card); border:1px solid var(--line); border-radius:16px;
+  }
+  .f{display:flex; flex-direction:column; gap:6px}
+  .f label{font-size:.72rem; color:var(--muted); font-weight:700}
+  .f input,.f select{
+    background:var(--bg2); border:1px solid var(--line2); color:var(--text);
+    border-radius:10px; padding:8px 12px; font-family:inherit; font-size:.85rem; min-width:130px; outline:none;
+  }
+  .f input:focus,.f select:focus{border-color:var(--blue)}
+  .f select option{background:var(--bg2)}
+  body[data-tab="feedback"] .f[data-scope="complaints"]{display:none}
+  /* ===== Layout ===== */
+  main{padding:0 28px 40px}
+  .tab-page{display:none}
+  .tab-page.active{display:block; animation:fade .35s ease}
+  @keyframes fade{from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:none}}
+  .kpi-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px; margin-bottom:18px}
+  .kpi{
+    display:flex; align-items:center; gap:13px; padding:16px 18px;
+    background:linear-gradient(155deg,var(--card2),var(--card));
+    border:1px solid var(--line); border-radius:18px; transition:.25s;
+  }
+  .kpi:hover{transform:translateY(-3px); border-color:var(--line2)}
+  .kpi .num{font-family:'Outfit'; font-size:1.9rem; font-weight:800; line-height:1.1}
+  .kpi .lbl{font-size:.76rem; color:var(--muted); font-weight:700; margin-top:3px}
+  .kpi .sub{font-size:.68rem; color:var(--muted); margin-top:2px}
+  .ic{width:47px; height:47px; border-radius:14px; display:grid; place-items:center; font-size:1.35rem; flex-shrink:0}
+  .ic.b{background:rgba(91,140,255,.14); box-shadow:inset 0 0 0 1px rgba(91,140,255,.3)}
+  .ic.g{background:rgba(47,191,113,.14); box-shadow:inset 0 0 0 1px rgba(47,191,113,.3)}
+  .ic.r{background:rgba(239,68,68,.14); box-shadow:inset 0 0 0 1px rgba(239,68,68,.3)}
+  .ic.p{background:rgba(168,85,247,.14); box-shadow:inset 0 0 0 1px rgba(168,85,247,.3)}
+  .ic.a{background:rgba(245,158,11,.14); box-shadow:inset 0 0 0 1px rgba(245,158,11,.3)}
+  .ic.c{background:rgba(34,211,238,.14); box-shadow:inset 0 0 0 1px rgba(34,211,238,.3)}
+  .grid{display:grid; grid-template-columns:repeat(12,1fr); gap:14px}
+  .card{
+    background:linear-gradient(160deg,var(--card2),var(--card));
+    border:1px solid var(--line); border-radius:18px; padding:18px 20px;
+  }
+  .card h3{font-size:.92rem; font-weight:800; margin-bottom:14px; display:flex; align-items:center; gap:8px}
+  .card h3::before{content:''; width:4px; height:16px; border-radius:4px; background:var(--grad1)}
+  .span4{grid-column:span 4}.span5{grid-column:span 5}.span6{grid-column:span 6}
+  .span7{grid-column:span 7}.span8{grid-column:span 8}.span12{grid-column:span 12}
+  .chart{position:relative; height:280px}
+  .chart.tall{height:320px}
+  @media(max-width:1100px){
+    .span4,.span5,.span6,.span7,.span8{grid-column:span 12}
+  }
+  /* ===== Tables ===== */
+  .table-wrap{max-height:360px; overflow:auto; border-radius:12px}
+  table{width:100%; border-collapse:collapse; font-size:.82rem}
+  thead th{
+    position:sticky; top:0; background:var(--bg2); color:var(--muted); font-weight:700;
+    text-align:right; padding:10px 12px; border-bottom:1px solid var(--line2); font-size:.74rem; white-space:nowrap; z-index:2;
+  }
+  tbody td{padding:10px 12px; border-bottom:1px solid rgba(30,42,68,.55); white-space:nowrap}
+  tbody tr:hover{background:rgba(91,140,255,.05)}
+  .p{display:inline-block; padding:4px 11px; border-radius:999px; font-size:.7rem; font-weight:800; white-space:nowrap}
+  .p-green{background:rgba(47,191,113,.14); color:#4ade80; box-shadow:inset 0 0 0 1px rgba(47,191,113,.35)}
+  .p-purple{background:rgba(168,85,247,.14); color:#c084fc; box-shadow:inset 0 0 0 1px rgba(168,85,247,.35)}
+  .p-red{background:rgba(239,68,68,.14); color:#f87171; box-shadow:inset 0 0 0 1px rgba(239,68,68,.35)}
+  .p-amber{background:rgba(245,158,11,.14); color:#fbbf24; box-shadow:inset 0 0 0 1px rgba(245,158,11,.35)}
+  .p-blue{background:rgba(91,140,255,.14); color:#93b4ff; box-shadow:inset 0 0 0 1px rgba(91,140,255,.35)}
+  td.wrap{white-space:normal; min-width:180px; max-width:340px}
+  /* ===== Toast ===== */
+  .toast{
+    position:fixed; bottom:24px; right:50%; transform:translate(50%,20px); z-index:99;
+    background:var(--card2); border:1px solid var(--line2); color:var(--text);
+    padding:13px 22px; border-radius:13px; font-size:.85rem; font-weight:700;
+    opacity:0; pointer-events:none; transition:.3s; box-shadow:0 12px 30px rgba(0,0,0,.5);
+  }
+  .toast.show{opacity:1; transform:translate(50%,0)}
+  .toast.ok{border-color:rgba(47,191,113,.5)}
+  .toast.warn{border-color:rgba(245,158,11,.5)}
+  footer{padding:22px; text-align:center; color:var(--muted); font-size:.75rem}
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:var(--line2); border-radius:8px}
+  ::-webkit-scrollbar-track{background:transparent}
+  @media print{
+    .top-actions,.filterbar,.tabs,.toast{display:none !important}
+    .tab-page{display:block !important; page-break-before:always}
+    body{background:#fff; color:#111}
+    .card,.kpi{background:#fff; border-color:#ddd}
+  }
+</style>
+</head>
+<body data-tab="overview">
+
+<header class="topbar">
+  <div class="brand">
+    <div class="logo">✦</div>
+    <div>
+      <h1>لوحة تحليل البيانات</h1>
+      <p>الشكاوى والفيدباك — تحليل تفاعلي</p>
+    </div>
+  </div>
+  <nav class="tabs">
+    <button class="tab active" data-tab="overview">نظرة عامة</button>
+    <button class="tab" data-tab="complaints">الشكاوى</button>
+    <button class="tab" data-tab="feedback">الفيدباك</button>
+  </nav>
+  <div class="top-actions">
+    <span class="badge" id="dataSource">بيانات تجريبية</span>
+    <label class="btn primary" for="fileInput">⬆ تحميل ملف Excel</label>
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" hidden>
+    <button class="btn" id="resetBtn">↺ بيانات تجريبية</button>
+    <button class="btn" onclick="window.print()">🖨 طباعة</button>
+  </div>
+</header>
+
+<div class="filterbar">
+  <div class="f"><label>📅 من تاريخ</label><input type="date" id="fFrom"></div>
+  <div class="f"><label>📅 إلى تاريخ</label><input type="date" id="fTo"></div>
+  <div class="f"><label>🏪 الفرع</label><select id="fBranch"><option value="">الكل</option></select></div>
+  <div class="f" data-scope="complaints"><label>🔁 الحالة</label><select id="fStatus"><option value="">الكل</option></select></div>
+  <div class="f" data-scope="complaints"><label>🔊 المصدر</label><select id="fDest"><option value="">الكل</option></select></div>
+  <div class="f" data-scope="complaints"><label>👤 المسؤول</label><select id="fAgent"><option value="">الكل</option></select></div>
+  <button class="btn" id="clearFilters" style="margin-inline-start:auto">✕ مسح الفلاتر</button>
+</div>
+
+<main>
+  <!-- ================= OVERVIEW ================= -->
+  <section id="tab-overview" class="tab-page active">
+    <div class="kpi-grid">
+      <div class="kpi"><div class="ic b">👥</div><div><div class="num" id="kOvTotal">0</div><div class="lbl">إجمالي التفاعلات</div><div class="sub">شكاوى + فيدباك</div></div></div>
+      <div class="kpi"><div class="ic a">📞</div><div><div class="num" id="kOvComp">0</div><div class="lbl">إجمالي الشكاوى</div><div class="sub" id="kOvCompSub">—</div></div></div>
+      <div class="kpi"><div class="ic c">💬</div><div><div class="num" id="kOvFb">0</div><div class="lbl">إجمالي الفيدباك</div><div class="sub" id="kOvFbSub">—</div></div></div>
+      <div class="kpi"><div class="ic r">⏰</div><div><div class="num" id="kOv48">0</div><div class="lbl">شكاوى 48H Pending</div><div class="sub">تحتاج متابعة عاجلة</div></div></div>
+      <div class="kpi"><div class="ic g">😊</div><div><div class="num" id="kOvSat">0%</div><div class="lbl">نسبة الرضا العامة</div><div class="sub">من الفيدباك</div></div></div>
+    </div>
+    <div class="grid">
+      <div class="card span8"><h3>التطور الشهري — شكاوى vs فيدباك</h3><div class="chart"><canvas id="chOvMonthly"></canvas></div></div>
+      <div class="card span4"><h3>مصادر الشكاوى</h3><div class="chart"><canvas id="chOvDest"></canvas></div></div>
+      <div class="card span6"><h3>أعلى الفروع حسب حجم التفاعل</h3><div class="chart"><canvas id="chOvBranch"></canvas></div></div>
+      <div class="card span6"><h3>أكثر أنواع المشاكل تكرارًا</h3><div class="chart"><canvas id="chOvIssues"></canvas></div></div>
+    </div>
+  </section>
+
+  <!-- ================= COMPLAINTS ================= -->
+  <section id="tab-complaints" class="tab-page">
+    <div class="kpi-grid">
+      <div class="kpi"><div class="ic a">📞</div><div><div class="num" id="kCmpTotal">0</div><div class="lbl">إجمالي الشكاوى</div><div class="sub">في الفترة المختارة</div></div></div>
+      <div class="kpi"><div class="ic g">✅</div><div><div class="num" id="kCmpClosed">0</div><div class="lbl">شكاوى مغلقة</div><div class="sub" id="kCmpClosedSub">—</div></div></div>
+      <div class="kpi"><div class="ic p">⏳</div><div><div class="num" id="kCmpPending">0</div><div class="lbl">قيد الانتظار</div><div class="sub">Pending + 48H Pending</div></div></div>
+      <div class="kpi"><div class="ic r">🚨</div><div><div class="num" id="kCmp48">0</div><div class="lbl">48H Pending</div><div class="sub">تجاوزت المدة المسموحة</div></div></div>
+      <div class="kpi"><div class="ic c">🕐</div><div><div class="num" id="kCmpAvg">0</div><div class="lbl">متوسط زمن الإغلاق</div><div class="sub">بالأيام</div></div></div>
+    </div>
+    <div class="grid">
+      <div class="card span4"><h3>توزيع الحالة</h3><div class="chart"><canvas id="chCmpStatus"></canvas></div></div>
+      <div class="card span4"><h3>مصدر الشكوى</h3><div class="chart"><canvas id="chCmpDest"></canvas></div></div>
+      <div class="card span4"><h3>زمن حل الشكوى</h3><div class="chart"><canvas id="chCmpRes"></canvas></div></div>
+      <div class="card span8"><h3>الشكاوى الشهرية — تم إنشاؤها vs تم إغلاقها</h3><div class="chart"><canvas id="chCmpMonthly"></canvas></div></div>
+      <div class="card span4"><h3>الشكاوى حسب الفرع</h3><div class="chart"><canvas id="chCmpBranch"></canvas></div></div>
+      <div class="card span6"><h3>أكواد المشاكل (Top 10)</h3><div class="chart"><canvas id="chCmpIssue"></canvas></div></div>
+      <div class="card span6"><h3>لوحة شرف المسؤولين — عدد الشكاوى المُدارة</h3><div class="chart"><canvas id="chCmpAgent"></canvas></div></div>
+      <div class="card span12"><h3>أحدث الشكاوى</h3><div class="table-wrap"><table id="tbCmp"></table></div></div>
+    </div>
+  </section>
+
+  <!-- ================= FEEDBACK ================= -->
+  <section id="tab-feedback" class="tab-page">
+    <div class="kpi-grid">
+      <div class="kpi"><div class="ic c">💬</div><div><div class="num" id="kFbTotal">0</div><div class="lbl">إجمالي الفيدباك</div><div class="sub">في الفترة المختارة</div></div></div>
+      <div class="kpi"><div class="ic g">😍</div><div><div class="num" id="kFbGood">0</div><div class="lbl">راضٍ تمامًا</div><div class="sub" id="kFbGoodSub">—</div></div></div>
+      <div class="kpi"><div class="ic a">😐</div><div><div class="num" id="kFbPart">0</div><div class="lbl">راضٍ جزئيًا</div><div class="sub">فيه ملاحظات</div></div></div>
+      <div class="kpi"><div class="ic r">😠</div><div><div class="num" id="kFbBad">0</div><div class="lbl">غير راضٍ</div><div class="sub" id="kFbBadSub">—</div></div></div>
+      <div class="kpi"><div class="ic b">💵</div><div><div class="num" id="kFbAvg">0</div><div class="lbl">متوسط قيمة الطلب</div><div class="sub">جنيه</div></div></div>
+    </div>
+    <div class="grid">
+      <div class="card span4"><h3>الرضا العام</h3><div class="chart"><canvas id="chFbSat"></canvas></div></div>
+      <div class="card span8"><h3>تقييم عناصر الخدمة (سرعة/تعامل/حل/توصيل)</h3><div class="chart"><canvas id="chFbEval"></canvas></div></div>
+      <div class="card span6"><h3>الفيدباك الشهري + نسبة الرضا</h3><div class="chart"><canvas id="chFbMonthly"></canvas></div></div>
+      <div class="card span6"><h3>الرضا حسب الفرع</h3><div class="chart"><canvas id="chFbBranch"></canvas></div></div>
+      <div class="card span12"><h3>أهم المشاكل الواردة من الفيدباك</h3><div class="chart"><canvas id="chFbProb"></canvas></div></div>
+      <div class="card span12"><h3>أحدث الفيدباك</h3><div class="table-wrap"><table id="tbFb"></table></div></div>
+    </div>
+  </section>
+</main>
+
+<footer>✦ لوحة تحليل البيانات — الشكاوى والفيدباك · ارفع ملف Excel لتحليل بياناتك الحقيقية</footer>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+/* ============================================================
+   القوائم الأساسية (من الصفقات الأصلية)
+============================================================ */
+const BRANCHES=["City 1","City 2","City 3","City 4","Elmerghany","Chilout","CFC","Mall Of Egypt","Mall Of Arabia","Almaza","Point 90","Madinty","Tanta","Mansoura 1","Mansoura 2","San Stefano","City Center Alex"];
+const DESTINATIONS=["On Call","Social Media","Feed Back","Whats App","Branch Employee","Camera Team","Follow Up"];
+const STATUSES=["Closed","Pending","48H Pending"];
+const AGENTS=["M.Ehab","A.Omar","M.Saeed","Younis","A.Farag","M.Khaled","Sohila","Manar","Karima","Mayada"];
+const ISSUE_CODES=["Broken","Warranty On Broken","Sales","Without Matrial","Issue For Screen","Issue For Skins","Change prices","General Info","Payment Issue","Upgrade & Downgrade","Bumber","Accessories & Lens","Matrial out of stock","Wrong Mobile Number","Change Mobile Number","No Account","Without Serial","Change Serial Number","Bad Attiude","Missing & Wrong Info-Branch","Wrong action-Branch","Missing & Wrong Info-Agent","Technical Issue","Fraud","No Code","Others"];
+const PRODUCTS=["iPhone 17 Pro Max","iPhone 16 Pro Max","iPhone 15 Pro","Watch 9 Series","SAM S22 Ultra","iPad Pro 11","AirPods Pro","Power Bank","iPhone 14","Galaxy Buds","Cover iPhone 13","Tempered Glass 15"];
+const SOLD_BY=["Imp Store","Fuel Store","Online"];
+const EVAL_COLS=["سرعة التواصل","تعامل الموظف","حل المشكلة","التوصيل والتغليف"];
+const PAL=["#5b8cff","#2fbf71","#f59e0b","#ef4444","#a855f7","#22d3ee","#ec4899","#84cc16","#f97316","#14b8a6","#eab308","#8b5cf6","#38bdf8","#4ade80","#fb7185","#c084fc","#2dd4bf"];
+const C_GOOD="#2fbf71", C_PART="#f59e0b", C_BAD="#ef4444";
+
+/* ============================================================
+   أدوات مساعدة
+============================================================ */
+const $=s=>document.querySelector(s);
+const rnd=Math.random;
+const choice=a=>a[Math.floor(rnd()*a.length)];
+const fmt=n=>Number(n||0).toLocaleString('en-US');
+function wpick(pairs){let s=0;pairs.forEach(p=>s+=p[1]);let r=rnd()*s;for(const[v,w]of pairs){if((r-=w)<=0)return v;}return pairs[0][0];}
+function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function randomDateBack(nDays){const d=new Date();d.setDate(d.getDate()-Math.floor(rnd()*nDays));d.setHours(8+Math.floor(rnd()*10),Math.floor(rnd()*60));return d;}
+function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x;}
+function toast(msg,type){const t=$('#toast');t.textContent=msg;t.className='toast show '+(type||'ok');clearTimeout(toast._t);toast._t=setTimeout(()=>t.className='toast',3200);}
+function phone(){return '01'+choice(['0','1','2','5'])+String(Math.floor(10000000+rnd()*89999999));}
+function money(n){return Number(n).toLocaleString('en-US',{maximumFractionDigits:0});}
+
+/* ============================================================
+   توليد بيانات تجريبية بنفس شكل البيانات الأصلية
+============================================================ */
+function genComplaints(n){
+  const rows=[];
+  const descPool=["العميل يشكو من تأخر تجهيز الطلب","الشاشة بها خدش من الاستخدام الأول","مندوب التوصيل اتأخر عن الموعد","العميل غير راضٍ عن تعامل الموظف","الجهاز بيعلق أثناء التشغيل","خطأ في مبلغ الفاتورة","الطلب وصل ناقص ملحقاته","التغليف ضرب الشاشة","الجهاز مش راضي يشتغل بعد التحديث","تم التأجيل أكثر من مرة بلا حل"];
+  const rootPool=["تأخر الرد على العميل","خطأ من الفني","نقص في المخزون","خلل في نظام المتابعة","سوء تعامل","مشكلة في التوصيل","خطأ إدخال بيانات","لا يوجد سبب واضح"];
+  const issues=[["Issue For Skins",12],["Issue For Screen",10],["Sales",10],["Broken",9],["Warranty On Broken",8],["Without Matrial",7],["Change prices",7],["General Info",7],["Payment Issue",6],["Upgrade & Downgrade",5],["Bumber",5],["Accessories & Lens",5],["Technical Issue",4],["Matrial out of stock",3],["Wrong Mobile Number",3],["No Account",3],["Others",4],["Wrong action-Branch",2],["Bad Attiude",2]];
+  for(let i=0;i<n;i++){
+    const d=randomDateBack(183);
+    const status=wpick([["Closed",62],["Pending",26],["48H Pending",12]]);
+    let closeDate=null, resDays=null;
+    if(status==="Closed"){resDays=wpick([[0,18],[1,26],[2,20],[3,12],[5,9],[7,8],[10,5],[14,2]]);closeDate=addDays(d,resDays);}
+    rows.push({
+      serial:"SC-"+(2026000+i),
+      date:iso(d), closeDate:closeDate?iso(closeDate):null,
+      branch:choice(BRANCHES),
+      dest:wpick([["On Call",42],["Whats App",18],["Social Media",14],["Feed Back",12],["Branch Employee",7],["Camera Team",4],["Follow Up",3]]),
+      problem:choice(PRODUCTS), soldBy:choice(SOLD_BY),
+      name:choice(["Ahmed","Mohamed","Mostafa","Kareem","Sara","Nour","Youssef","Omar","Aya","Amr"])+" "+choice(["Mahmoud","Gamal","Saeed","Adel","Hassan","Fathy","Kamal"]),
+      phone:phone(), desc:choice(descPool), root:choice(rootPool),
+      status, agent:choice(AGENTS), issue:wpick(issues), resDays, note:rnd()<0.12?"تم تعويض العميل":""
+    });
+  }
+  return rows.sort((a,b)=>b.date.localeCompare(a.date));
+}
+
+function genFeedback(n){
+  const rows=[];
+  const problemPool=["صوت الجرس مش شغال","الشاشة مش لازقة كويس","مقاس الكفر مش مظبوط","أعطال مفاجئ في التشغيل","مشكلة في الشاشة (الكل)","بطارية بتخلص بسرعة","الإيميل مش فاتح","حساسية اللمس ضعيفة","مشكلة في التوصيل (الكل)","تأخر في تجهيز الطلب","الصوت عالي جدًا","مشكلة في الإيميل"];
+  const parts=["Front","Glass","Back","Screen","Camera Lens"];
+  const names=["Ahmed","Mohamed","Mostafa","Kareem","Sara","Nour","Youssef","Omar","Aya","Amr","Salma","Hana","Mariam","Ziad"];
+  const lasts=["Mahmoud","Gamal","Saeed","Adel","Hassan","Fathy","Kamal","Nabil"];
+  for(let i=0;i<n;i++){
+    const d=randomDateBack(183);
+    const evals=EVAL_COLS.map(()=>wpick([["good",72],["partial",18],["bad",10]]));
+    const overall=evals.includes("bad")?"bad":evals.includes("partial")?"partial":"good";
+    rows.push({
+      date:iso(d), customer:choice(names)+" "+choice(lasts), phone:phone(),
+      order:"Impact 50%1c "+choice(PRODUCTS)+" "+choice(parts),
+      total:Math.round(150+rnd()*3000),
+      branch:choice(BRANCHES), site:choice(SOLD_BY),
+      evals, overall, problem:choice(problemPool),
+      agent:choice(AGENTS)
+    });
+  }
+  return rows.sort((a,b)=>b.date.localeCompare(a.date));
+}
+
+/* ============================================================
+   الحالة العامة
+============================================================ */
+let complaints=[], feedback=[];
+const charts={};
+
+/* ============================================================
+   إعداد Chart.js
+============================================================ */
+Chart.defaults.font.family="'Tajawal','Segoe UI',sans-serif";
+Chart.defaults.font.size=11;
+Chart.defaults.color="#8ea0c0";
+Chart.defaults.borderColor="rgba(148,163,184,.08)";
+
+function baseOpts(){
+  return {
+    responsive:true, maintainAspectRatio:false,
+    plugins:{
+      legend:{labels:{boxWidth:9,boxHeight:9,usePointStyle:true,pointStyle:'circle',padding:14}},
+      tooltip:{backgroundColor:'#1e293b',padding:12,cornerRadius:10,borderColor:'#334155',borderWidth:1}
+    }
+  };
+}
+function draw(id,cfg){
+  if(charts[id]) charts[id].destroy();
+  const el=document.getElementById(id);
+  if(!el) return;
+  charts[id]=new Chart(el,cfg);
+}
+function barOpts(horizontal,stacked,extra){
+  const o=baseOpts();
+  o.scales={
+    x:{stacked:!!stacked, grid:{color:'rgba(148,163,184,.06)'}, beginAtZero:true, ticks:{precision:0}},
+    y:{stacked:!!stacked, grid:{display:horizontal}, ticks:{precision:0}}
+  };
+  if(horizontal){const t=o.scales.x;o.scales.x=o.scales.y;o.scales.y=t;}
+  if(stacked){o.plugins.tooltip.callbacks={label:c=>' '+c.dataset.label+': '+fmt(c.parsed.x??c.parsed.y)};}
+  return Object.assign(o,extra||{});
+}
+function donutOpts(){
+  const o=baseOpts();
+  o.cutout='62%';
+  o.plugins.legend.position='bottom';
+  return o;
+}
+
+/* ============================================================
+   تجميعات مساعدة
+============================================================ */
+function countBy(rows,fn){
+  const m=new Map();
+  rows.forEach(r=>{const k=fn(r);if(k==null||k==="")return;m.set(k,(m.get(k)||0)+1);});
+  return [...m.entries()].sort((a,b)=>b[1]-a[1]);
+}
+function topN(entries,n){return entries.slice(0,n);}
+function monthKeys(dates){
+  return [...new Set(dates.filter(Boolean).map(d=>d.slice(0,7)))].sort();
+}
+function monthLabel(key){
+  const [y,m]=key.split('-');
+  return new Date(y,m-1,1).toLocaleString('ar-EG',{month:'short'})+' '+y.slice(2);
+}
+function statusPill(s){
+  const map={'Closed':'p-green','Pending':'p-purple','48H Pending':'p-red'};
+  return '<span class="p '+(map[s]||'p-blue')+'">'+(s||'-')+'</span>';
+}
+function satPill(s){
+  const map={good:['p-green','راضٍ'],partial:['p-amber','جزئي'],bad:['p-red','غير راضٍ']};
+  const v=map[s]||['p-amber','?'];
+  return '<span class="p '+v[0]+'">'+v[1]+'</span>';
+}
+
+/* ============================================================
+   الفلاتر
+============================================================ */
+function buildOptions(){
+  const fill=(id,arr)=>{const s=$(id);arr.forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;s.appendChild(o);});};
+  fill('#fBranch',BRANCHES); fill('#fStatus',STATUSES); fill('#fDest',DESTINATIONS); fill('#fAgent',AGENTS);
+}
+function getFiltered(){
+  const from=$('#fFrom').value, to=$('#fTo').value;
+  const br=$('#fBranch').value, st=$('#fStatus').value, ds=$('#fDest').value, ag=$('#fAgent').value;
+  const inRange=r=>(!from||r.date>=from)&&(!to||r.date<=to);
+  const C=complaints.filter(r=>inRange(r)&&(!br||r.branch===br)&&(!st||r.status===st)&&(!ds||r.dest===ds)&&(!ag||r.agent===ag));
+  const F=feedback.filter(r=>inRange(r)&&(!br||r.branch===br));
+  return [C,F];
+}
+function fullDateRange(){
+  const all=[...complaints,...feedback].map(r=>r.date).filter(Boolean).sort();
+  if(!all.length)return;
+  $('#fFrom').value=all[0]; $('#fTo').value=all[all.length-1];
+}
+function clearFilters(){
+  ['#fBranch','#fStatus','#fDest','#fAgent'].forEach(id=>$(id).value='');
+  fullDateRange(); render();
+}
+
+/* ============================================================
+   التبويبات
+============================================================ */
+document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tab-page').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  $('#tab-'+b.dataset.tab).classList.add('active');
+  document.body.dataset.tab=b.dataset.tab;
+}));
+
+/* ============================================================
+   الرسم — نظرة عامة
+============================================================ */
+function renderOverview(C,F){
+  $('#kOvTotal').textContent=fmt(C.length+F.length);
+  $('#kOvComp').textContent=fmt(C.length);
+  $('#kOvCompSub').textContent=C.length?('نسبة الإغلاق '+Math.round(C.filter(r=>r.status==='Closed').length/C.length*100)+'%'):'—';
+  $('#kOvFb').textContent=fmt(F.length);
+  $('#kOvFbSub').textContent=F.length?('متوسط الطلب '+money(F.reduce((a,r)=>a+(+r.total||0),0)/F.length)+' ج'):'—';
+  $('#kOv48').textContent=fmt(C.filter(r=>r.status==='48H Pending').length);
+  const good=F.filter(r=>r.overall==='good').length;
+  $('#kOvSat').textContent=F.length?Math.round(good/F.length*100)+'%':'0%';
+
+  // شهري
+  const keys=monthKeys([...C.map(r=>r.date),...F.map(r=>r.date)]);
+  const cc=keys.map(k=>C.filter(r=>r.date&&r.date.startsWith(k)).length);
+  const ff=keys.map(k=>F.filter(r=>r.date&&r.date.startsWith(k)).length);
+  draw('chOvMonthly',{type:'line',data:{labels:keys.map(monthLabel),datasets:[
+    {label:'شكاوى',data:cc,borderColor:C_GOOD,cubicInterpolationMode:'monotone',tension:.4,borderWidth:3,pointRadius:3,fill:true,backgroundColor:'rgba(47,191,113,.08)'},
+    {label:'فيدباك',data:ff,borderColor:'#22d3ee',cubicInterpolationMode:'monotone',tension:.4,borderWidth:3,pointRadius:3,fill:true,backgroundColor:'rgba(34,211,238,.08)'}
+  ]},options:baseOpts()});
+
+  // مصادر
+  const dest=topN(countBy(C,r=>r.dest),7);
+  draw('chOvDest',{type:'doughnut',data:{labels:dest.map(d=>d[0]),datasets:[{data:dest.map(d=>d[1]),backgroundColor:PAL,borderWidth:2,borderColor:'#0f1626'}]},options:donutOpts()});
+
+  // فروع
+  const brC=countBy(C,r=>r.branch), brF=countBy(F,r=>r.branch);
+  const allBranches=[...new Set([...brC.map(b=>b[0]),...brF.map(b=>b[0])])];
+  const brRows=allBranches.map(b=>[b,(brC.find(x=>x[0]===b)||[0,0])[1]+(brF.find(x=>x[0]===b)||[0,0])[1]]).sort((a,b)=>b[1]-a[1]);
+  const topB=topN(brRows,10);
+  draw('chOvBranch',{type:'bar',data:{labels:topB.map(b=>b[0]),datasets:[
+    {label:'شكاوى',data:topB.map(b=>(brC.find(x=>x[0]===b[0])||[0,0])[1]),backgroundColor:'#5b8cff',borderRadius:6},
+    {label:'فيدباك',data:topB.map(b=>(brF.find(x=>x[0]===b[0])||[0,0])[1]),backgroundColor:'#22d3ee',borderRadius:6}
+  ]},options:barOpts(false,false,null)});
+
+  // أنواع المشاكل
+  const iss=topN(countBy(C,r=>r.issue),7);
+  draw('chOvIssues',{type:'bar',data:{labels:iss.map(i=>i[0]),datasets:[{data:iss.map(i=>i[1]),backgroundColor:'#5b8cff',borderRadius:7}]},options:barOpts(true)});
+}
+
+/* ============================================================
+   الرسم — الشكاوى
+============================================================ */
+function renderComplaints(C){
+  const closed=C.filter(r=>r.status==='Closed');
+  const pend=C.filter(r=>r.status==='Pending');
+  const p48=C.filter(r=>r.status==='48H Pending');
+  $('#kCmpTotal').textContent=fmt(C.length);
+  $('#kCmpClosed').textContent=fmt(closed.length);
+  $('#kCmpClosedSub').textContent=C.length?('نسبة الإغلاق '+Math.round(closed.length/C.length*100)+'%'):'—';
+  $('#kCmpPending').textContent=fmt(pend.length+p48.length);
+  $('#kCmp48').textContent=fmt(p48.length);
+  const withRes=closed.filter(r=>r.resDays!=null);
+  $('#kCmpAvg').textContent=withRes.length?(withRes.reduce((a,r)=>a+r.resDays,0)/withRes.length).toFixed(1):'0';
+
+  // الحالة
+  const stt=STATUSES.map(s=>[s,C.filter(r=>r.status===s).length]).filter(x=>x[1]>0);
+  draw('chCmpStatus',{type:'doughnut',data:{labels:stt.map(s=>s[0]),datasets:[{data:stt.map(s=>s[1]),backgroundColor:['#2fbf71','#a855f7','#ef4444'].slice(0,stt.length),borderWidth:2,borderColor:'#0f1626'}]},options:donutOpts()});
+
+  // المصدر
+  const dest=topN(countBy(C,r=>r.dest),7);
+  draw('chCmpDest',{type:'doughnut',data:{labels:dest.map(d=>d[0]),datasets:[{data:dest.map(d=>d[1]),backgroundColor:PAL,borderWidth:2,borderColor:'#0f1626'}]},options:donutOpts()});
+
+  // زمن الحل
+  const buckets={"أقل من يوم":0,"1 - 3 أيام":0,"4 - 7 أيام":0,"أكثر من أسبوع":0};
+  closed.forEach(r=>{const d=r.resDays??0;if(d<=0)buckets["أقل من يوم"]++;else if(d<=3)buckets["1 - 3 أيام"]++;else if(d<=7)buckets["4 - 7 أيام"]++;else buckets["أكثر من أسبوع"]++;});
+  draw('chCmpRes',{type:'bar',data:{labels:Object.keys(buckets),datasets:[{data:Object.values(buckets),backgroundColor:'#f59e0b',borderRadius:7}]},options:barOpts(false)});
+
+  // شهري: إنشاء vs إغلاق
+  const keys=monthKeys([...C.map(r=>r.date),...C.map(r=>r.closeDate)]);
+  const created=keys.map(k=>C.filter(r=>r.date&&r.date.startsWith(k)).length);
+  const closedM=keys.map(k=>C.filter(r=>r.closeDate&&r.closeDate.startsWith(k)).length);
+  draw('chCmpMonthly',{type:'line',data:{labels:keys.map(monthLabel),datasets:[
+    {label:'تم إنشاؤها',data:created,borderColor:'#5b8cff',tension:.4,borderWidth:3,pointRadius:3,fill:true,backgroundColor:'rgba(91,140,255,.09)',cubicInterpolationMode:'monotone'},
+    {label:'تم إغلاقها',data:closedM,borderColor:'#2fbf71',tension:.4,borderWidth:3,pointRadius:3,fill:true,backgroundColor:'rgba(47,191,113,.09)',cubicInterpolationMode:'monotone'}
+  ]},options:baseOpts()});
+
+  // الفرع
+  const br=topN(countBy(C,r=>r.branch),12);
+  draw('chCmpBranch',{type:'bar',data:{labels:br.map(b=>b[0]),datasets:[{data:br.map(b=>b[1]),backgroundColor:'#a855f7',borderRadius:6}]},options:barOpts(true)});
+
+  // أكواد المشاكل
+  const iss=topN(countBy(C,r=>r.issue),10);
+  draw('chCmpIssue',{type:'bar',data:{labels:iss.map(i=>i[0]),datasets:[{data:iss.map(i=>i[1]),backgroundColor:'#5b8cff',borderRadius:6}]},options:barOpts(true)});
+
+  // المسؤولين
+  const ag=topN(countBy(C,r=>r.agent),10);
+  draw('chCmpAgent',{type:'bar',data:{labels:ag.map(a=>a[0]),datasets:[
+    {label:'مغلقة',data:ag.map(a=>C.filter(r=>r.agent===a[0]&&r.status==='Closed').length),backgroundColor:'#2fbf71',borderRadius:6,stack:'s'},
+    {label:'معلقة',data:ag.map(a=>C.filter(r=>r.agent===a[0]&&r.status!=='Closed').length),backgroundColor:'#ef4444',borderRadius:6,stack:'s'}
+  ]},options:barOpts(false,true)});
+
+  // جدول أحدث الشكاوى
+  const rows=C.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,12);
+  $('#tbCmp').innerHTML='<thead><tr><th>الكود</th><th>التاريخ</th><th>الفرع</th><th>المصدر</th><th>المنتج</th><th>المشكلة</th><th>الحالة</th><th>المسؤول</th></tr></thead><tbody>'+
+    rows.map(r=>'<tr><td>'+r.serial+'</td><td>'+r.date+'</td><td>'+r.branch+'</td><td>'+r.dest+'</td><td>'+r.problem+'</td><td class="wrap">'+r.issue+'</td><td>'+statusPill(r.status)+'</td><td>'+(r.agent||'-')+'</td></tr>').join('')+'</tbody>';
+}
+
+/* ============================================================
+   الرسم — الفيدباك
+============================================================ */
+function renderFeedback(F){
+  const good=F.filter(r=>r.overall==='good').length;
+  const part=F.filter(r=>r.overall==='partial').length;
+  const bad=F.filter(r=>r.overall==='bad').length;
+  $('#kFbTotal').textContent=fmt(F.length);
+  $('#kFbGood').textContent=fmt(good);
+  $('#kFbGoodSub').textContent=F.length?Math.round(good/F.length*100)+'%':'—';
+  $('#kFbPart').textContent=fmt(part);
+  $('#kFbBad').textContent=fmt(bad);
+  $('#kFbBadSub').textContent=F.length?Math.round(bad/F.length*100)+'%':'—';
+  $('#kFbAvg').textContent=F.length?money(F.reduce((a,r)=>a+(+r.total||0),0)/F.length):'0';
+
+  // الرضا العام
+  draw('chFbSat',{type:'doughnut',data:{labels:['راضٍ','جزئي','غير راضٍ'],datasets:[{data:[good,part,bad],backgroundColor:[C_GOOD,C_PART,C_BAD],borderWidth:2,borderColor:'#0f1626'}]},options:donutOpts()});
+
+  // عناصر الخدمة
+  const counts=EVAL_COLS.map(ename=>{
+    const rowsE=F.filter(r=>r.evals&&r.evals[EVAL_COLS.indexOf(ename)]);
+    return {
+      good:rowsE.filter(r=>r.evals[EVAL_COLS.indexOf(ename)]==='good').length,
+      partial:rowsE.filter(r=>r.evals[EVAL_COLS.indexOf(ename)]==='partial').length,
+      bad:rowsE.filter(r=>r.evals[EVAL_COLS.indexOf(ename)]==='bad').length
+    };
+  });
+  draw('chFbEval',{type:'bar',data:{labels:EVAL_COLS,datasets:[
+    {label:'تمام',data:counts.map(c=>c.good),backgroundColor:C_GOOD,borderRadius:6,stack:'s'},
+    {label:'تمام لكن في مشكلة',data:counts.map(c=>c.partial),backgroundColor:C_PART,borderRadius:6,stack:'s'},
+    {label:'مشكلة كبيرة',data:counts.map(c=>c.bad),backgroundColor:C_BAD,borderRadius:6,stack:'s'}
+  ]},options:barOpts(false,true)});
+
+  // شهري
+  const keys=monthKeys(F.map(r=>r.date));
+  const cnt=keys.map(k=>F.filter(r=>r.date.startsWith(k)).length);
+  const sat=keys.map(k=>{const s=F.filter(r=>r.date.startsWith(k));return s.length?Math.round(s.filter(r=>r.overall==='good').length/s.length*100):null;});
+  draw('chFbMonthly',{type:'line',data:{labels:keys.map(monthLabel),datasets:[
+    {label:'عدد الفيدباك',data:cnt,borderColor:'#22d3ee',tension:.4,borderWidth:3,pointRadius:3,fill:true,backgroundColor:'rgba(34,211,238,.09)',cubicInterpolationMode:'monotone'},
+    {label:'نسبة الرضا %',data:sat,borderColor:'#2fbf71',tension:.4,borderWidth:3,pointRadius:3,borderDash:[6,4],yAxisID:'y1'}
+  ]},options:(()=>{const o=baseOpts();o.scales={x:{grid:{color:'rgba(148,163,184,.06)'}},y:{grid:{color:'rgba(148,163,184,.06)'},beginAtZero:true},y1:{position:'right',min:0,max:100,grid:{display:false},ticks:{callback:v=>v+'%'}}};return o;})()});
+
+  // الرضا حسب الفرع
+  const br=topN(countBy(F,r=>r.branch),10).map(b=>b[0]);
+  draw('chFbBranch',{type:'bar',data:{labels:br,datasets:[
+    {label:'راضٍ',data:br.map(b=>F.filter(r=>r.branch===b&&r.overall==='good').length),backgroundColor:C_GOOD,borderRadius:6,stack:'s'},
+    {label:'جزئي',data:br.map(b=>F.filter(r=>r.branch===b&&r.overall==='partial').length),backgroundColor:C_PART,borderRadius:6,stack:'s'},
+    {label:'غير راضٍ',data:br.map(b=>F.filter(r=>r.branch===b&&r.overall==='bad').length),backgroundColor:C_BAD,borderRadius:6,stack:'s'}
+  ]},options:barOpts(true,true)});
+
+  // المشاكل
+  const pr=topN(countBy(F,r=>r.problem),8);
+  draw('chFbProb',{type:'bar',data:{labels:pr.map(p=>p[0]),datasets:[{data:pr.map(p=>p[1]),backgroundColor:'#ec4899',borderRadius:6}]},options:barOpts(true)});
+
+  // جدول
+  const rows=F.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,12);
+  $('#tbFb').innerHTML='<thead><tr><th>التاريخ</th><th>العميل</th><th>الموبايل</th><th>المتجر</th><th>المنتج</th><th>الإجمالي</th><th>التقييم</th><th>المشكلة</th></tr></thead><tbody>'+
+    rows.map(r=>'<tr><td>'+r.date+'</td><td>'+r.customer+'</td><td>'+r.phone+'</td><td>'+(r.site||'-')+'</td><td>'+r.order+'</td><td>'+money(r.total)+' ج</td><td>'+satPill(r.overall)+'</td><td class="wrap">'+r.problem+'</td></tr>').join('')+'</tbody>';
+}
+
+/* ============================================================
+   الرسم الرئيسي
+============================================================ */
+function render(){
+  const [C,F]=getFiltered();
+  renderOverview(C,F);
+  renderComplaints(C);
+  renderFeedback(F);
+}
+
+/* ============================================================
+   استيراد ملف Excel — اكتشاف الأعمدة أوتوماتيك
+============================================================ */
+function normDate(v){
+  if(v==null||v==='')return null;
+  if(v instanceof Date&&!isNaN(v))return iso(v);
+  if(typeof v==='number'){const d=new Date(Date.UTC(1899,11,30)+v*86400000);return isNaN(d)?null:iso(d);}
+  const t=new Date(v);if(!isNaN(t))return iso(t);
+  const m=String(v).match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+  if(m){let a=+m[1],b=+m[2],c=+m[3];if(c<100)c+=2000;if(b>12&&a<=12){const t2=a;a=b;b=t2;}return c+'-'+String(a).padStart(2,'0')+'-'+String(b).padStart(2,'0');}
+  return null;
+}
+function pickH(H,keys,arKeys){
+  for(const k of keys){const h=H.find(x=>String(x).toLowerCase().includes(k.toLowerCase()));if(h!=null)return h;}
+  if(arKeys)for(const k of arKeys){const h=H.find(x=>String(x).includes(k));if(h!=null)return h;}
+  return null;
+}
+function classifyVal(v){
+  const s=String(v).trim();
+  if(!s||s==='-'||s.length<2)return null;
+  if(s==='تمام'||s==='تمام اوي'||s==='تمام جدًا'||s==='تمام جداً')return 'good';
+  if(/مشكلة كبيرة|لم يتم|لم يصل|مش شغال|مش مظبوطة|اعطال|تأخر|زعل|غضب|بطلان|ملغيت|رفض/.test(s))return 'bad';
+  if(/مشكلة|لكن|تصحيح|يقدم|متابعة|يحتاج|جزئي/.test(s))return 'partial';
+  return null;
+}
+function parseWorkbook(wb){
+  const out={complaints:[],feedback:[]};
+  wb.SheetNames.forEach(nm=>{
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[nm],{defval:''});
+    if(!rows.length)return;
+    const H=Object.keys(rows[0]);
+    const isCmp=/شك/.test(nm)||H.some(h=>/complaints? destination|issue code|root cause/i.test(h));
+    const isFb=/فيد|feedback/i.test(nm)||H.some(h=>/customer[_ ]?phone/i.test(h))||(!isCmp&&H.filter(h=>/[\u0600-\u06FF]/.test(h)).length>=5);
+    if(isFb&&!isCmp){
+      // ===== فيدباك =====
+      const fDate=pickH(H,['date','start call'],['التاريخ']);
+      const fCust=pickH(H,['customer'],['العميل','اسم']);
+      const fPhone=pickH(H,['phone'],['موبايل']);
+      const fOrder=pickH(H,['order','product'],['منتج']);
+      const fTotal=pickH(H,['total'],['اجمالي','إجمالي']);
+      const fBr=pickH(H,['branch','new site'],['فرع']);
+      const fProb=pickH(H,['problems'],['مشاكل','مشكلة','اخري','آخري']);
+      const arCols=H.filter(h=>/[\u0600-\u06FF]/.test(h)&&h!==fCust&&h!==fProb&&!(fBr&&h===fBr));
+      rows.forEach(r=>{
+        const evals=arCols.map(h=>classifyVal(r[h]));
+        const valid=evals.filter(Boolean);
+        let overall='good';
+        if(valid.length){
+          overall=evals.includes('bad')?'bad':evals.includes('partial')?'partial':'good';
+        }else if(fProb&&String(r[fProb]||'').trim()){overall='bad';}
+        out.feedback.push({
+          date:normDate(r[fDate])||'', customer:String(r[fCust]||'').trim()||'—',
+          phone:String(r[fPhone]||'').trim(), order:String(r[fOrder]||'').trim()||'—',
+          total:parseFloat(String(r[fTotal]||'0').replace(/[^\d.]/g,''))||0,
+          branch:String(r[fBr]||'').trim()||'غير محدد', site:'', evals, overall,
+          problem:String(fProb?r[fProb]||'':'').trim()||'—', agent:String(r[pickH(H,['handled','مسؤول'])]||'').trim()
+        });
+      });
+      console.log('Feedback sheet:',nm,'| أعمـدة تقييم:',arCols.length);
+    }else if(isCmp){
+      // ===== شكاوى =====
+      const cDate=pickH(H,['start call','1st call','date'],['التاريخ']);
+      const cClose=pickH(H,['close date']);
+      const cBr=pickH(H,['branch'],['فرع']);
+      const cDest=pickH(H,['complaints destination','destination'],['مصدر']);
+      const cProb=pickH(H,['problem type','product']);
+      const cStatus=pickH(H,['status']);
+      const cAgent=pickH(H,['handled by','handled'],['مسؤول']);
+      const cIssue=pickH(H,['issue code']);
+      const cDesc=pickH(H,['description']);
+      const cPhone=pickH(H,['contact number','phone']);
+      const cName=pickH(H,['contact name']);
+      const cSerial=pickH(H,['serial']);
+      rows.forEach(r=>{
+        const stRaw=String(r[cStatus]||'').trim();
+        const status=STATUSES.find(s=>stRaw.toLowerCase().includes(s.toLowerCase()))||(/pending/i.test(stRaw)?stRaw:'');
+        const d=normDate(r[cDate]), dc=normDate(r[cClose]);
+        let resDays=null;
+        if(d&&dc)resDays=Math.round((new Date(dc)-new Date(d))/86400000);
+        out.complaints.push({
+          serial:String(r[cSerial]||'').trim(), date:d||'', closeDate:dc,
+          branch:String(r[cBr]||'').trim()||'غير محدد', dest:String(r[cDest]||'').trim()||'غير محدد',
+          problem:String(r[cProb]||'').trim()||'—', soldBy:'', name:String(r[cName]||'').trim(),
+          phone:String(r[cPhone]||'').trim(), desc:String(r[cDesc]||'').trim(),
+          root:'', status:status||'غير محدد', agent:String(r[cAgent]||'').trim(),
+          issue:String(r[cIssue]||'').trim()||'غير محدد', resDays:status==='Closed'?resDays:null, note:''
+        });
+      });
+      console.log('Complaints sheet:',nm);
+    }
+  });
+  return out;
+}
+
+$('#fileInput').addEventListener('change',async e=>{
+  const f=e.target.files[0];if(!f)return;
+  try{
+    const buf=await f.arrayBuffer();
+    const wb=XLSX.read(buf,{type:'array',cellDates:true});
+    const res=parseWorkbook(wb);
+    if(!res.complaints.length&&!res.feedback.length){toast('⚠️ لم يتم التعرف على الأعمدة — تأكد إن الملف فيه ورقة شكاوى أو فيدباك','warn');return;}
+    if(res.complaints.length){complaints=res.complaints;}
+    if(res.feedback.length){feedback=res.feedback;}
+    clearFilters();
+    $('#dataSource').textContent='بيانات حقيقية: '+f.name;
+    $('#dataSource').classList.add('real');
+    toast('✅ تم تحميل '+complaints.length+' شكوى و'+feedback.length+' فيدباك من "'+f.name+'"');
+  }catch(err){
+    console.error(err);
+    toast('⚠️ حصل خطأ في قراءة الملف — جرّب ملف xlsx','warn');
+  }
+  e.target.value='';
+});
+
+$('#resetBtn').addEventListener('click',()=>{
+  loadData();
+  clearFilters();
+  $('#dataSource').textContent='بيانات تجريبية';
+  $('#dataSource').classList.remove('real');
+  toast('↺ رجعنا للبيانات التجريبية');
+});
+$('#clearFilters').addEventListener('click',clearFilters);
+['#fFrom','#fTo','#fBranch','#fStatus','#fDest','#fAgent'].forEach(id=>$(id).addEventListener('change',render));
+
+/* ============================================================
+   التشغيل
+============================================================ */
+function loadData(){
+  complaints=genComplaints(240);
+  feedback=genFeedback(320);
+}
+buildOptions();
+loadData();
+fullDateRange();
+render();
+</script>
+</body>
+</html>

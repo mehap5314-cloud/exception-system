@@ -1,0 +1,1155 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#8eb1b6">
+<title>نظام إدخال البيانات — الأكسبشن ومشاكل الموظفين والمنتجات</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&family=Outfit:wght@500;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --ink:#0f4c5c; --ink2:#41707c; --ink3:#6b98a3;
+    --glass:rgba(255,255,255,.34); --glass2:rgba(255,255,255,.5);
+    --bord:rgba(255,255,255,.55);
+    --darkInput:rgba(10,64,77,.3);
+    --gradA:linear-gradient(135deg,#34d399,#0ea5b7);
+    --gradB:linear-gradient(135deg,#5b8cff,#7c5cff);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    min-height:100vh; color:var(--ink); font-family:'Tajawal','Segoe UI',sans-serif;
+    background:
+      radial-gradient(900px 520px at 85% -5%, rgba(255,255,255,.38), transparent 60%),
+      radial-gradient(750px 450px at 0% 25%, rgba(52,211,153,.20), transparent 62%),
+      radial-gradient(700px 500px at 100% 90%, rgba(14,165,183,.16), transparent 60%),
+      linear-gradient(155deg,#b9ced1 0%,#9db9bd 45%,#8eb1b6 78%,#a9c6c5 100%);
+    background-attachment:fixed;
+  }
+  /* ===== Top bar ===== */
+  .topbar{
+    position:sticky;top:0;z-index:50;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+    padding:12px 26px;background:rgba(255,255,255,.3);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+    border-bottom:1px solid rgba(255,255,255,.45);
+  }
+  .brand{display:flex;align-items:center;gap:11px}
+  .logo{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;background:var(--gradA);color:#fff;font-size:1.2rem;box-shadow:0 6px 16px rgba(20,166,150,.4)}
+  .brand h1{font-size:1rem;font-weight:800;color:var(--ink)}
+  .brand p{font-size:.68rem;color:var(--ink2);font-weight:600}
+  .tabs{display:flex;gap:6px;background:rgba(255,255,255,.4);border:1px solid var(--bord);padding:5px;border-radius:14px;flex-wrap:wrap}
+  .tab{border:0;background:transparent;color:var(--ink2);font-family:inherit;font-weight:700;padding:8px 15px;border-radius:10px;cursor:pointer;font-size:.84rem;transition:.25s}
+  .tab:hover{background:rgba(255,255,255,.5);color:var(--ink)}
+  .tab.active{background:var(--gradA);color:#fff;box-shadow:0 4px 12px rgba(20,166,150,.4)}
+  .top-actions{display:flex;align-items:center;gap:9px;margin-inline-start:auto;flex-wrap:wrap}
+  .btn{border:1px solid rgba(255,255,255,.65);background:rgba(255,255,255,.55);color:var(--ink);font-family:inherit;font-weight:700;padding:9px 15px;border-radius:11px;cursor:pointer;font-size:.84rem;transition:.2s;display:inline-flex;align-items:center;gap:7px}
+  .btn:hover{background:rgba(255,255,255,.8)}
+  .btn.success{background:var(--gradA);border:none;color:#fff;box-shadow:0 4px 14px rgba(20,166,150,.4)}
+  .btn.success:hover{filter:brightness(1.05)}
+  .btn.danger{border-color:rgba(239,68,68,.45);color:#c2410c}
+  .btn.danger:hover{background:rgba(239,68,68,.12)}
+  .btn.small{padding:5px 10px;font-size:.74rem;border-radius:9px}
+  .avatar{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;font-size:1.15rem;background:var(--gradB);color:#fff;box-shadow:0 5px 14px rgba(124,92,255,.35)}
+  /* ===== Layout ===== */
+  main{padding:18px 26px 40px}
+  .tab-page{display:none}
+  .tab-page.active{display:block;animation:fade .3s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}
+  .card{background:var(--glass);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid var(--bord);border-radius:22px;padding:20px;box-shadow:0 10px 34px rgba(23,74,88,.13)}
+  .card h3{font-size:.95rem;font-weight:800;margin-bottom:15px;display:flex;align-items:center;gap:8px;color:var(--ink)}
+  .card h3::before{content:'';width:4px;height:16px;border-radius:4px;background:var(--gradA)}
+  .span4{grid-column:span 4}.span5{grid-column:span 5}.span6{grid-column:span 6}
+  .span7{grid-column:span 7}.span8{grid-column:span 8}.span12{grid-column:span 12}
+  @media(max-width:1100px){.span4,.span5,.span6,.span7,.span8{grid-column:span 12}}
+  /* ===== Forms ===== */
+  .form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:13px}
+  .field{display:flex;flex-direction:column;gap:6px}
+  .field.full{grid-column:span 2}
+  .field label{font-size:.74rem;color:var(--ink2);font-weight:800}
+  .field .req{color:#d97706}
+  .field input,.field select,.field textarea{
+    background:var(--darkInput);border:1px solid rgba(255,255,255,.3);color:#f1fffb;
+    border-radius:12px;padding:10px 13px;font-family:inherit;font-size:.88rem;outline:none;transition:.2s;width:100%;
+  }
+  .field input::placeholder,.field textarea::placeholder{color:rgba(241,255,251,.5)}
+  .field textarea{min-height:72px;resize:vertical}
+  .field input:focus,.field select:focus,.field textarea:focus{border-color:#34d399;box-shadow:0 0 0 3px rgba(52,211,153,.22)}
+  .field input.invalid,.field select.invalid,.field textarea.invalid{border-color:#ef4444;box-shadow:0 0 0 3px rgba(239,68,68,.18)}
+  .field select option{color:var(--ink);background:#eef7f6}
+  .field input[readonly]{cursor:pointer}
+  .form-actions{grid-column:span 2;display:flex;gap:10px;margin-top:4px}
+  /* ===== Dropdown للقوائم (الموظفين) ===== */
+  .combo-pop{
+    position:fixed;z-index:220;min-width:220px;max-height:270px;overflow:auto;display:none;
+    background:rgba(255,255,255,.96);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.9);
+    border-radius:14px;box-shadow:0 14px 40px rgba(15,76,92,.25);padding:6px;
+  }
+  .combo-item{display:flex;align-items:center;gap:8px;padding:9px 13px;border-radius:10px;cursor:pointer;font-size:.84rem;font-weight:700;color:var(--ink);white-space:nowrap}
+  .combo-item:hover{background:rgba(52,211,153,.18)}
+  .combo-item.add{color:#0d9488;border-top:1px dashed rgba(15,76,92,.2);margin-top:4px;border-radius:0 0 10px 10px}
+  .combo-item.empty{color:var(--ink3);cursor:default;font-weight:600}
+  /* ===== الكالندر ===== */
+  .cal-pop{
+    position:fixed;z-index:210;width:312px;display:none;direction:ltr;
+    background:rgba(255,255,255,.97);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.9);
+    border-radius:18px;box-shadow:0 16px 44px rgba(15,76,92,.3);padding:14px;font-family:'Tajawal';
+  }
+  .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .cal-head button{width:34px;height:34px;border:1px solid rgba(15,76,92,.15);border-radius:10px;background:#f4fbfa;color:var(--ink);cursor:pointer;font-size:1rem;display:grid;place-items:center;font-family:inherit}
+  .cal-head button:hover{background:#d9f2ee}
+  .cal-title{font-weight:800;font-size:.92rem;color:var(--ink)}
+  .cal-wd{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:6px}
+  .cal-wd div{text-align:center;font-size:.66rem;font-weight:800;color:var(--ink3)}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+  .cal-day{height:33px;border-radius:10px;display:grid;place-items:center;cursor:pointer;font-size:.8rem;font-weight:700;color:var(--ink)}
+  .cal-day:hover{background:rgba(20,184,166,.15)}
+  .cal-day.dim{opacity:.35}
+  .cal-day.today{box-shadow:inset 0 0 0 2px #14b8a6;color:#0d9488}
+  .cal-day.sel{background:var(--gradA);color:#fff;box-shadow:none}
+  .cal-foot{display:flex;gap:8px;margin-top:10px}
+  .cal-foot button{flex:1;border:1px solid rgba(15,76,92,.15);background:#f4fbfa;color:var(--ink);border-radius:10px;padding:7px 8px;font-family:inherit;font-weight:800;font-size:.78rem;cursor:pointer}
+  .cal-foot button:hover{background:#d9f2ee}
+  /* ===== Tables ===== */
+  .table-wrap{overflow:auto;border-radius:14px;max-height:430px}
+  table{width:100%;border-collapse:collapse;font-size:.82rem}
+  thead th{position:sticky;top:0;background:rgba(255,255,255,.78);backdrop-filter:blur(6px);color:var(--ink2);font-weight:800;text-align:right;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.75);font-size:.72rem;white-space:nowrap;z-index:2}
+  tbody td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.35);white-space:nowrap;color:var(--ink)}
+  td.wrap{white-space:normal;min-width:160px;max-width:320px}
+  tbody tr:hover{background:rgba(255,255,255,.25)}
+  .search{background:var(--darkInput);border:1px solid rgba(255,255,255,.3);color:#f1fffb;border-radius:11px;padding:9px 13px;font-family:inherit;outline:none;min-width:240px}
+  .search::placeholder{color:rgba(241,255,251,.5)}
+  .search:focus{border-color:#34d399}
+  .count{font-size:.74rem;color:var(--ink2);font-weight:800;margin-inline-start:auto}
+  .p{display:inline-block;padding:4px 11px;border-radius:999px;font-size:.7rem;font-weight:800;white-space:nowrap}
+  .p-green{background:rgba(16,185,129,.2);color:#067a55;box-shadow:inset 0 0 0 1px rgba(16,185,129,.4)}
+  .p-purple{background:rgba(168,85,247,.18);color:#6d28d9;box-shadow:inset 0 0 0 1px rgba(168,85,247,.35)}
+  .p-red{background:rgba(239,68,68,.16);color:#b91c1c;box-shadow:inset 0 0 0 1px rgba(239,68,68,.35)}
+  .p-amber{background:rgba(245,158,11,.22);color:#92600a;box-shadow:inset 0 0 0 1px rgba(245,158,11,.4)}
+  .p-blue{background:rgba(91,140,255,.18);color:#1d4ed8;box-shadow:inset 0 0 0 1px rgba(91,140,255,.35)}
+  .p-cyan{background:rgba(34,211,238,.2);color:#0e7490;box-shadow:inset 0 0 0 1px rgba(34,211,238,.4)}
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-inline-start:5px}
+  .dot.on{background:#2fbf71}.dot.off{background:#f59e0b}
+  /* ===== KPI & charts ===== */
+  .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:13px;margin-bottom:14px}
+  .kpi{display:flex;align-items:center;gap:12px;padding:15px 17px;background:var(--glass2);backdrop-filter:blur(14px);border:1px solid var(--bord);border-radius:18px;transition:.25s;box-shadow:0 8px 26px rgba(23,74,88,.1)}
+  .kpi:hover{transform:translateY(-3px)}
+  .kpi .num{font-family:'Outfit';font-size:1.7rem;font-weight:800;line-height:1.1;color:var(--ink)}
+  .kpi .lbl{font-size:.75rem;color:var(--ink2);font-weight:800;margin-top:2px}
+  .ic{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;font-size:1.25rem;flex-shrink:0;background:rgba(255,255,255,.55);box-shadow:inset 0 0 0 1px rgba(255,255,255,.6)}
+  .chart{position:relative;height:280px}
+  .mini-note{font-size:.71rem;color:var(--ink2);font-weight:600}
+  .filter-row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px}
+  .filter-row .field{min-width:150px}
+  /* ===== Modal ===== */
+  .overlay{position:fixed;inset:0;z-index:150;background:rgba(10,40,48,.45);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;padding:18px}
+  .overlay.show{display:flex}
+  .modal{width:min(760px,96vw);max-height:92vh;overflow:auto;background:rgba(255,255,255,.94);border-radius:22px;padding:22px;border:1px solid rgba(255,255,255,.9);box-shadow:0 24px 70px rgba(10,40,48,.4)}
+  .modal h3{font-size:1rem;font-weight:800;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+  .modal h3::before{content:'';width:4px;height:16px;border-radius:4px;background:var(--gradA)}
+  .steps{font-size:.84rem;color:var(--ink);line-height:2;font-weight:600}
+  .steps b{color:#0d9488}
+  pre.gscode{direction:ltr;text-align:left;background:#0f2c34;color:#a7f3d0;border-radius:14px;padding:16px;font-size:.74rem;line-height:1.55;overflow:auto;max-height:300px;font-family:Consolas,monospace;white-space:pre}
+  .gs-row{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}
+  .gs-row input{flex:1;min-width:260px;direction:ltr;text-align:left;background:var(--darkInput);border:1px solid rgba(255,255,255,.3);color:#f1fffb;border-radius:11px;padding:10px 13px;font-family:inherit;outline:none}
+  .gs-row input:focus{border-color:#34d399}
+  .gs-status{font-size:.78rem;font-weight:700;color:var(--ink2);margin-top:6px}
+  /* ===== Toast ===== */
+  .toast{position:fixed;bottom:24px;left:50%;transform:translate(-50%,20px);z-index:300;background:rgba(255,255,255,.9);backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.95);color:var(--ink);padding:13px 22px;border-radius:13px;font-size:.85rem;font-weight:800;opacity:0;pointer-events:none;transition:.3s;box-shadow:0 14px 34px rgba(15,76,92,.25);max-width:92vw;text-align:center}
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+  .toast.ok{border-color:rgba(16,185,129,.6)}
+  .toast.warn{border-color:rgba(245,158,11,.7)}
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.55);border-radius:8px}
+  /* ===== موبايل ===== */
+  @media(max-width:760px){
+    .topbar{padding:10px 12px;gap:9px}
+    .brand h1{font-size:.88rem}
+    .brand p{display:none}
+    .logo,.avatar{width:36px;height:36px}
+    .tabs{order:10;width:100%;justify-content:center}
+    .tab{padding:7px 11px;font-size:.76rem}
+    .top-actions{width:100%;justify-content:center}
+    .btn{padding:8px 12px;font-size:.78rem}
+    main{padding:12px 12px 34px}
+    .form-grid{grid-template-columns:1fr}
+    .field.full,.form-actions{grid-column:span 1}
+    .card{padding:16px 14px}
+    .chart{height:230px}
+    .table-wrap{max-height:none}
+    table{font-size:.76rem}
+    tbody td{padding:8px 9px;white-space:normal}
+    thead th{padding:8px 9px}
+    .cal-pop{width:min(320px,94vw)}
+  }
+</style>
+</head>
+<body data-tab="exc">
+
+<header class="topbar">
+  <div class="brand">
+    <div class="logo">⇪</div>
+    <div>
+      <h1>نظام إدخال البيانات</h1>
+      <p>الأكسبشن · مشاكل الموظفين · مشاكل المنتجات · سجلات وتحليل</p>
+    </div>
+  </div>
+  <nav class="tabs">
+    <button class="tab active" data-tab="exc">📝 إدخال أكسبشن</button>
+    <button class="tab" data-tab="emp">🧑‍🔧 مشاكل الموظفين</button>
+    <button class="tab" data-tab="prod">📱 مشاكل منتجات الشركة</button>
+    <button class="tab" data-tab="records">🗂 السجلات</button>
+    <button class="tab" data-tab="analysis">📊 تحليل البيانات</button>
+  </nav>
+  <div class="top-actions">
+    <button class="btn" id="gsBtn">📄 ربط Google Sheet</button>
+    <span id="gsPend" class="p p-amber" style="display:none;align-self:center;cursor:pointer" title="سجلات في انتظار المزامنة — اضغط للفتح">⏳ 0</span>
+    <button class="btn" id="exportBtn">⬇ تصدير Excel</button>
+    <label class="btn" for="importFile">⬆ استيراد Excel</label>
+    <input type="file" id="importFile" accept=".xlsx,.xls,.csv" hidden>
+    <div class="avatar">👤</div>
+  </div>
+</header>
+
+<main>
+  <!-- ================= إدخال أكسبشن ================= -->
+  <section id="tab-exc" class="tab-page active">
+    <div class="card" style="max-width:980px">
+      <h3>📝 تسجيل أكسبشن جديد</h3>
+      <form id="excForm" class="form-grid" novalidate>
+        <div class="field"><label>التاريخ <span class="req">*</span></label><input type="text" id="fDate" class="cal-btn" placeholder="اضغط لاختيار التاريخ 📅" required readonly></div>
+        <div class="field"><label>الموظف (Agent) <span class="req">*</span></label><input type="text" id="fAgent" autocomplete="off" placeholder="اضغط لاختيار الموظف أو اكتب الاسم" required></div>
+        <div class="field"><label>رقم التواصل <span class="req">*</span></label><input type="tel" id="fContact" placeholder="01xxxxxxxxx" required></div>
+        <div class="field"><label>المشكلة (Issue) <span class="req">*</span></label>
+          <select id="fIssue" required>
+            <option value="">— اختار —</option>
+            <option>Screen</option>
+            <option>Bumber</option>
+            <option>Accessories</option>
+            <option>Others</option>
+          </select>
+        </div>
+        <div class="field"><label>الأكسبشن (Excibsons) <span class="req">*</span></label>
+          <select id="fExc" required>
+            <option value="">— اختار —</option>
+            <option>No Fees</option>
+            <option>Refund</option>
+            <option>Change Serial</option>
+            <option>Without Matrial</option>
+            <option>Upgrade</option>
+            <option>Others</option>
+          </select>
+        </div>
+        <div class="field"><label>مبلغ الاسترداد (Amount Refund)</label><input type="number" id="fAmount" min="0" step="0.01" placeholder="0.00"></div>
+        <div class="field full"><label>الوصف (Description)</label><textarea id="fDesc" placeholder="اكتب تفاصيل الحالة..."></textarea></div>
+        <div class="form-actions">
+          <button type="submit" class="btn success" id="excSubmit">✔ حفظ الأكسبشن</button>
+          <button type="button" class="btn danger" id="excCancel" style="display:none">✕ إلغاء التعديل</button>
+          <button type="button" class="btn" id="excReset">تفرّغ النموذج</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- ================= مشاكل الموظفين ================= -->
+  <section id="tab-emp" class="tab-page">
+    <div class="card" style="max-width:980px">
+      <h3>🧑‍🔧 تسجيل مشكلة موظف</h3>
+      <form id="empForm" class="form-grid" novalidate>
+        <div class="field"><label>اسم العميل <span class="req">*</span></label><input type="text" id="epiName" placeholder="مثال: Ahmed Gamal" required></div>
+        <div class="field"><label>رقم العميل <span class="req">*</span></label><input type="tel" id="epiPhone" placeholder="01xxxxxxxxx" required></div>
+        <div class="field"><label>نوع الموبايل <span class="req">*</span></label><input type="text" id="epiMobileType" list="dlEpiMobile" placeholder="مثال: iPhone 16 Pro Max" required>
+          <datalist id="dlEpiMobile"></datalist>
+        </div>
+        <div class="field"><label>الفرع <span class="req">*</span></label><select id="epiBranch" required><option value="">— اختر الفرع —</option></select></div>
+        <div class="field"><label>اسم الموظف <span class="req">*</span></label><input type="text" id="epiAgent" autocomplete="off" placeholder="اضغط لاختيار الموظف أو اكتب الاسم" required></div>
+        <div class="field"><label>تاريخ التسجيل</label><input type="text" id="epiEntryDate" readonly></div>
+        <div class="field full"><label>الشكوي <span class="req">*</span></label><textarea id="epiComplaint" placeholder="اكتب الشكوي اللي اشتكى منها العميل..." required></textarea></div>
+        <div class="form-actions">
+          <button type="submit" class="btn success" id="empSubmit">✔ حفظ الشكوي</button>
+          <button type="button" class="btn danger" id="empCancel" style="display:none">✕ إلغاء التعديل</button>
+          <button type="button" class="btn" id="empReset">تفرّغ النموذج</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- ================= مشاكل منتجات الشركة ================= -->
+  <section id="tab-prod" class="tab-page">
+    <div class="card" style="max-width:880px">
+      <h3>📱 تسجيل مشكلة في منتجات الشركة</h3>
+      <form id="prodForm" class="form-grid" novalidate>
+        <div class="field"><label>اسم العميل <span class="req">*</span></label><input type="text" id="pcName" placeholder="مثال: Ahmed Gamal" required></div>
+        <div class="field"><label>نوع الموبايل <span class="req">*</span></label><input type="text" id="pcMobileType" list="dlMobile" placeholder="مثال: iPhone 16 Pro Max" required>
+          <datalist id="dlMobile"></datalist>
+        </div>
+        <div class="field"><label>رقم الموبايل / الموبايل <span class="req">*</span></label><input type="text" id="pcMobileNum" placeholder="IMEI أو رقم الجهاز" required></div>
+        <div class="field"><label>المنتج <span class="req">*</span></label><input type="text" id="pcProduct" list="dlProduct" placeholder="مثال: Impact 50%1c Front Glass" required>
+          <datalist id="dlProduct"></datalist>
+        </div>
+        <div class="field"><label>تاريخ الشراء <span class="req">*</span></label><input type="text" id="pcPurchase" class="cal-btn" placeholder="اضغط لاختيار التاريخ 📅" required readonly></div>
+        <div class="field"><label>تاريخ التسجيل</label><input type="text" id="pcEntryDate" readonly></div>
+        <div class="field full"><label>وصف المشكلة</label><textarea id="pcDesc" placeholder="اكتب المشكلة اللي شكى منها العميل..."></textarea></div>
+        <div class="form-actions">
+          <button type="submit" class="btn success" id="prodSubmit">✔ حفظ المشكلة</button>
+          <button type="button" class="btn danger" id="prodCancel" style="display:none">✕ إلغاء التعديل</button>
+          <button type="button" class="btn" id="prodReset">تفرّغ النموذج</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- ================= السجلات ================= -->
+  <section id="tab-records" class="tab-page">
+    <div class="card" style="margin-bottom:14px">
+      <h3>🗂 سجل الأكسبشن <span class="count" id="excCount"></span></h3>
+      <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+        <input class="search" id="excSearch" placeholder="🔎 بحث بالموظف / الأكسبشن / الوصف...">
+      </div>
+      <div class="table-wrap"><table id="tbExc"></table></div>
+    </div>
+    <div class="card" style="margin-bottom:14px">
+      <h3>🗂 سجل شكاوي الموظفين <span class="count" id="empCount"></span></h3>
+      <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+        <input class="search" id="empSearch" placeholder="🔎 بحث بالعميل / الموظف / الفرع / الشكوي...">
+      </div>
+      <div class="table-wrap"><table id="tbEmp"></table></div>
+    </div>
+    <div class="card">
+      <h3>🗂 سجل مشاكل المنتجات <span class="count" id="prodCount"></span></h3>
+      <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+        <input class="search" id="prodSearch" placeholder="🔎 بحث بالعميل / الموبايل / المنتج...">
+      </div>
+      <div class="table-wrap"><table id="tbProd"></table></div>
+    </div>
+  </section>
+
+  <!-- ================= تحليل البيانات ================= -->
+  <section id="tab-analysis" class="tab-page">
+    <div class="card" style="margin-bottom:14px">
+      <div class="filter-row">
+        <div class="field"><label>من تاريخ</label><input type="text" id="aFrom" class="cal-btn" placeholder="اختر 📅" readonly></div>
+        <div class="field"><label>إلى تاريخ</label><input type="text" id="aTo" class="cal-btn" placeholder="اختر 📅" readonly></div>
+        <button class="btn" id="aClear" style="align-self:flex-end">✕ مسح</button>
+        <span class="count" style="align-self:center">📊 التحليل بيشتغل على السجلات المسجلة هنا أو المستوردة من Excel</span>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi"><div class="ic">🎫</div><div><div class="num" id="kExc">0</div><div class="lbl">عدد الأكسبشن</div></div></div>
+        <div class="kpi"><div class="ic">💸</div><div><div class="num" id="kRefund">0</div><div class="lbl">إجمالي مبالغ الاسترداد</div></div></div>
+        <div class="kpi"><div class="ic">👥</div><div><div class="num" id="kEmp">0</div><div class="lbl">شكاوي الموظفين</div></div></div>
+        <div class="kpi"><div class="ic">📱</div><div><div class="num" id="kProd">0</div><div class="lbl">مشاكل المنتجات</div></div></div>
+        <div class="kpi"><div class="ic">🖥</div><div><div class="num" id="kTopIssue">—</div><div class="lbl">أكثر مشكلة تكرارًا</div></div></div>
+      </div>
+    </div>
+    <div class="grid">
+      <div class="card span8"><h3>المؤشرات شهريًا</h3><div class="chart"><canvas id="chAllMonthly"></canvas></div></div>
+      <div class="card span4"><h3>أنواع الأكسبشن</h3><div class="chart"><canvas id="chExType"></canvas></div></div>
+      <div class="card span4"><h3>المشاكل (Issue)</h3><div class="chart"><canvas id="chExIssue"></canvas></div></div>
+      <div class="card span8"><h3>الأكسبشن حسب الموظف</h3><div class="chart"><canvas id="chExAgent"></canvas></div></div>
+      <div class="card span6"><h3>شكاوي الموظفين حسب اسم الموظف</h3><div class="chart"><canvas id="chEpiAgent"></canvas></div></div>
+      <div class="card span6"><h3>شكاوي الموظفين حسب الفرع</h3><div class="chart"><canvas id="chEpiBranch"></canvas></div></div>
+      <div class="card span6"><h3>مشاكل المنتجات حسب نوع الموبايل</h3><div class="chart"><canvas id="chPrMobile"></canvas></div></div>
+      <div class="card span6"><h3>مشاكل المنتجات حسب المنتج</h3><div class="chart"><canvas id="chPrProduct"></canvas></div></div>
+    </div>
+  </section>
+</main>
+
+<!-- ================= مودال Google Sheet ================= -->
+<div class="overlay" id="gsOverlay">
+  <div class="modal">
+    <h3>📄 الربط بـ Google Sheet — الحفظ التلقائي</h3>
+    <p class="steps">
+      <b>1)</b> افتح <b>الشيت نفسه</b> ← قائمة <b>Extensions ← Apps Script</b> (مهم: عشان السكريبت يبقى مربوط بالشيت — ما تعملوش من script.google.com مستقل)<br>
+      <b>2)</b> امسح اللي في الكود واعمل لصق للكود ده تحت، وبعدين اضغط 💾 الحفظ<br>
+      <b>3)</b> <b>Deploy ← New deployment ← Web app</b> — خلي Execute as: <b>Me</b> و Who has access: <b>Anyone</b> ← Deploy<br>
+      <b>4)</b> انسخ الـ <b>Web app URL</b> — ده اللي <b>يبدأ بـ</b> <code style="direction:ltr">script.google.com/macros/s/…</code> <b>وينتهي بـ /exec</b><br>
+      <b>5)</b> الصق الرابط في الخانة دي تحت واضغط <b>حفظ الرابط</b> ← بعد كده جرب <b>🔌 اختبار الاتصال</b>
+    </p>
+    <p class="mini-note" style="margin:8px 0">⚠️ عنوان صفحة الكود اللي فيه "/projects/…/edit" مش لينك الويب آب — لو حطيته هيظهرلك "فشل رفع السجل". الكود ده بيستخدم تاباتك الموجودة (الأكسبشن · مشكلة موظف · مشكلة منتج) ولو لقأها أسماء إنجليزي هيستخدمها لو مش موجودة يعملها.</p>
+    <pre class="gscode" id="gsCode">
+// ⚠️ لازم الكود ده يتحط من داخل الشيت نفسه (Extensions ← Apps Script) عشان يبقى مربوط
+function doPost(e) {
+  var out = { ok: false };
+  try {
+    var data = JSON.parse(e.postData.contents);
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss) { out.err = "NOT-BOUND"; return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON); }
+    function findSheet(eng, arb) {
+      return ss.getSheetByName(eng) || ss.getSheetByName(arb) || ss.insertSheet(eng);
+    }
+    var CFG = {
+      exc: { eng: "Excibsons", arb: "الأكسبشن", headers: ["Date","Agent","Contact Number","Issue","Excibsons","Description","Amount Refund"],
+        map: [ ["date", ["Date","التاريخ","تاريخ الفتح"]],
+               ["agent", ["Agent","الموظف","اسم الموظف"]],
+               ["contact", ["Contact Number","رقم التواصل","رقم العميل"]],
+               ["issue", ["Issue","المشكلة","نوع المشكلة"]],
+               ["exctype", ["Excibsons","Exceptions","الأكسبشن"]],
+               ["desc", ["Description","الوصف","تفاصيل"]],
+               ["amount", ["Amount Refund","مبلغ الاسترداد"]] ] },
+      emp: { eng: "Employee Issues", arb: "مشكلة موظف", headers: ["Date","Customer","Customer Number","Mobile Type","Branch","Employee Name","Complaint"],
+        map: [ ["entryDate", ["Date","التاريخ"]],
+               ["name", ["Customer","اسم العميل","العميل"]],
+               ["phone", ["Customer Number","رقم العميل"]],
+               ["mobileType", ["Mobile Type","نوع الموبايل"]],
+               ["branch", ["Branch","الفرع"]],
+               ["agent", ["Employee Name","اسم الموظف","الموظف"]],
+               ["complaint", ["Complaint","الشكوي","الشكوى","وصف الشكوي"]] ] },
+      prod: { eng: "Product Issues", arb: "مشكلة منتج", headers: ["Customer","Mobile Type","Mobile Number","Product","Purchase Date","Problem","Recorded On"],
+        map: [ ["name", ["Customer","العميل","اسم العميل"]],
+               ["mobileType", ["Mobile Type","نوع الموبايل"]],
+               ["mobileNum", ["Mobile Number","رقم الموبايل","IMEI"]],
+               ["product", ["Product","المنتج"]],
+               ["purchase", ["Purchase Date","تاريخ الشراء"]],
+               ["desc", ["Problem","الوصف","المشكلة"]],
+               ["entryDate", ["Recorded On","تاريخ التسجيل"]] ] }
+    };
+    function writeRows(cfg, rows) {
+      if (!rows || !rows.length) return;
+      var s = findSheet(cfg.eng, cfg.arb);
+      if (s.getLastRow() === 0) s.appendRow(cfg.headers);
+      var hdr = s.getRange(1, 1, 1, s.getLastColumn()).getValues()[0];
+      var layout = [];
+      cfg.map.forEach(function (item) {
+        var key = item[0], alts = item[1], col = 0;
+        for (var i = 0; i !== hdr.length; i++) {
+          var h = String(hdr[i]).trim();
+          for (var j = 0; j !== alts.length; j++) {
+            if (h && h === alts[j]) { col = i + 1; break; }
+          }
+          if (col) break;
+        }
+        if (!col) { col = s.getLastColumn() + 1; s.getRange(1, col).setValue(alts[0]); hdr.push(alts[0]); }
+        layout.push([key, col]);
+      });
+      var maxCol = s.getLastColumn();
+      rows.forEach(function (r) {
+        var row = [];
+        for (var i = 0; i !== maxCol; i++) row.push("");
+        layout.forEach(function (p) { row[p[1] - 1] = (r[p[0]] === undefined || r[p[0]] === null) ? "" : r[p[0]]; });
+        s.appendRow(row);
+      });
+    }
+    if (data.type === "exc") writeRows(CFG.exc, [data]);
+    else if (data.type === "emp") writeRows(CFG.emp, [data]);
+    else if (data.type === "prod") writeRows(CFG.prod, [data]);
+    else if (data.type === "syncAll") {
+      writeRows(CFG.exc, data.exc);
+      writeRows(CFG.emp, data.emp);
+      writeRows(CFG.prod, data.prod);
+    }
+    out.ok = true;
+  } catch (err) { out.err = String(err); }
+  return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
+}</pre>
+    <button class="btn small" id="gsCopy">📋 نسخ الكود</button>
+    <div class="gs-row">
+      <input type="text" id="gsUrl" placeholder="Web app URL — https://script.google.com/macros/...">
+      <button class="btn success" id="gsSave">💾 حفظ الرابط</button>
+      <button class="btn" id="gsTest">🔌 اختبار الاتصال</button>
+      <button class="btn" id="gsSyncAll">⟳ مزامنة الكل الآن</button>
+      <button class="btn danger" id="gsClear">✕ مسح الرابط</button>
+    </div>
+    <div class="gs-status" id="gsStatus"></div>
+    <p class="mini-note" style="margin-top:10px">• أول ما تحفظ أكسبشن أو شكوي أو مشكلة والرابط متفعل، هيتحفظ صف تلقائي في الشيت (النقطة الخضراء ☁ في جداول السجلات معناها متزامن).<br>• أي سجل فشل رفعه (نت مقطوع مثلًا) هيتوسم بالبرتقالي ☁ وتقدر تضغط "مزامنة الكل الآن" بدون تكرار.<br>• عند تعديل سجل هيتضاف صف جديد في الشيت (الشيت بيضيف فقط) — الحذف بيتم يدويًا من الشيت نفسه.</p>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+/* ============================================================
+   الإعدادات والقوائم
+============================================================ */
+const DEFAULT_EXC_AGENTS=["Manar","Karima","Eslam","Sohila","M.Ehab","Yasmen","Amany","seif","ayman","M.saeed","Younis","Myada"];
+const BRANCHES=["City 1","City 2","City 3","City 4","Elmerghany","Chilout","CFC","Mall Of Egypt","Mall Of Arabia","Almaza","Point 90","Madinty","Tanta","Mansoura 1","Mansoura 2","San Stefano","City Center Alex"];
+const EXC_TYPES=[
+  ["No Fees","p-green"],["Refund","p-red"],["Change Serial","p-amber"],
+  ["Without Matrial","p-purple"],["Upgrade","p-cyan"],["Others","p-blue"]
+];
+const PAL=["#0ea5a0","#2fbf71","#f59e0b","#ef4444","#8b5cf6","#0ea5b7","#ec4899","#84cc16","#f97316","#14b8a6","#eab308","#5b8cff"];
+
+const LS={exc:'ds_excibsons',emp:'ds_empdata',prod:'ds_proddata',agents:'ds_agents',gs:'ds_ggs_url'};
+let exc=[], emp=[], prod=[], ags=[];
+let editExcId=null, editEmpId=null, editProdId=null;
+const charts={};
+
+const $=s=>document.querySelector(s);
+function on(id,ev,fn){const el=document.getElementById(id);if(!el){console.warn('binding skipped — missing #'+id);return;}el.addEventListener(ev,fn);}
+window.addEventListener('error',e=>{setTimeout(()=>toast('⛔ خطأ في تحميل الصفحة: '+e.message,'warn'),0);});
+const fmt=n=>Number(n||0).toLocaleString('en-US');
+const money=n=>Number(n||0).toLocaleString('en-US',{maximumFractionDigits:2});
+const todayISO=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function jsArg(s){return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");}
+function toast(msg,type){const t=$('#toast');t.textContent=msg;t.className='toast show '+(type||'ok');clearTimeout(toast._t);toast._t=setTimeout(()=>t.className='toast',3400);}
+function genId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
+function saveLS(){
+  try{
+    localStorage.setItem(LS.exc,JSON.stringify(exc));
+    localStorage.setItem(LS.emp,JSON.stringify(emp));
+    localStorage.setItem(LS.prod,JSON.stringify(prod));
+    localStorage.setItem(LS.agents,JSON.stringify(ags));
+  }catch(e){toast('⚠️ مفيش مساحة تخزين — صدّر البيانات لملف Excel','warn');}
+}
+function loadLS(){
+  try{
+    exc=JSON.parse(localStorage.getItem(LS.exc)||'null')||[];
+    emp=JSON.parse(localStorage.getItem(LS.emp)||'null')||[];
+    prod=JSON.parse(localStorage.getItem(LS.prod)||'null')||[];
+    ags=JSON.parse(localStorage.getItem(LS.agents)||'null');
+    if(!ags)ags=[...DEFAULT_EXC_AGENTS];
+    if(!ags.length)ags=[...DEFAULT_EXC_AGENTS];
+  }catch(e){exc=[];emp=[];prod=[];ags=[...DEFAULT_EXC_AGENTS];}
+}
+function allAgentNames(){
+  return [...new Set([...ags,...exc.map(r=>r.agent),...emp.map(r=>r.agent)].filter(x=>x&&String(x).trim()))];
+}
+
+/* ============================================================
+   الكالندر (مبني من الصفر — بدون مكتبات)
+============================================================ */
+const AR_MONTHS=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+const WD_CH=['أحد','إثنين','ثلاثاء','أربعاء','خميس','جمعة','سبت'];
+let calPop=null,calTarget=null,calView=null,calSel=null;
+
+function ymd(y,m,d){return y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');}
+function parseYmd(s){
+  if(!s)return null;
+  const m=String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m?ymd(+m[1],+m[2]-1,+m[3])&&new Date(+m[1],+m[2]-1,+m[3]):null;
+}
+function ensureCal(){
+  if(calPop)return;
+  calPop=document.createElement('div');
+  calPop.className='cal-pop';
+  document.body.appendChild(calPop);
+  document.addEventListener('mousedown',e=>{
+    if(!calPop.style.display||calPop.style.display==='none')return;
+    if(calPop.contains(e.target))return;
+    if(calTarget&&(e.target===calTarget||calTarget.contains(e.target)))return;
+    hideCal();
+  });
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')hideCal();});
+  window.addEventListener('scroll',hideCal,true);
+  window.addEventListener('resize',hideCal);
+}
+function hideCal(){if(calPop)calPop.style.display='none';}
+function openCal(input){
+  ensureCal();
+  calTarget=input;
+  calSel=parseYmd(input.value);
+  const base=calSel||parseYmd(todayISO());
+  calView=new Date(base.getFullYear(),base.getMonth(),1);
+  renderCal();
+  positionCal();
+  calPop.style.display='block';
+}
+function positionCal(){
+  const r=calTarget.getBoundingClientRect();
+  const w=312;
+  let top=r.bottom+8;
+  let left=r.right-w;
+  if(left<8)left=8;
+  if(left+w>window.innerWidth-8)left=window.innerWidth-8-w;
+  const h=calPop.offsetHeight||330;
+  if(top+h>window.innerHeight-8)top=Math.max(8,r.top-h-8);
+  calPop.style.left=left+'px';calPop.style.top=top+'px';
+}
+function renderCal(){
+  const y=calView.getFullYear(),m=calView.getMonth();
+  const firstOffset=new Date(y,m,1).getDay();
+  const daysIn=new Date(y,m+1,0).getDate();
+  const today=todayISO();
+  let html='<div class="cal-head"><button type="button" onclick="calNav(1)">‹</button>'+
+    '<div class="cal-title">'+AR_MONTHS[m]+' '+y+'</div>'+
+    '<button type="button" onclick="calNav(-1)">›</button></div>'+
+    '<div class="cal-wd">'+WD_CH.map(w=>'<div>'+w+'</div>').join('')+'</div>'+
+    '<div class="cal-grid">';
+  for(let i=0;i<firstOffset;i++)html+='<div></div>';
+  const selStr=calSel?ymd(calSel.getFullYear(),calSel.getMonth(),calSel.getDate()):null;
+  for(let d=1;d<=daysIn;d++){
+    const s=ymd(y,m,d);
+    let cls='cal-day';
+    if(s===today)cls+=' today';
+    if(selStr&&s===selStr)cls+=' sel';
+    html+='<div class="'+cls+'" onclick="calPick('+y+','+m+','+d+')">'+d+'</div>';
+  }
+  html+='</div><div class="cal-foot">'+
+    '<button type="button" onclick="calToday()">اليوم</button>'+
+    '<button type="button" onclick="calClear()">مسح</button></div>';
+  calPop.innerHTML=html;
+}
+function calNav(dir){calView=new Date(calView.getFullYear(),calView.getMonth()+dir,1);renderCal();positionCal();}
+function calPick(y,m,d){
+  const s=ymd(y,m,d);
+  if(calTarget){
+    calTarget.value=s;
+    calTarget.dispatchEvent(new Event('input',{bubbles:true}));
+    calTarget.dispatchEvent(new Event('change',{bubbles:true}));
+  }
+  hideCal();
+}
+function calToday(){calPick(new Date().getFullYear(),new Date().getMonth(),new Date().getDate());}
+function calClear(){
+  if(calTarget){
+    calTarget.value='';
+    calTarget.dispatchEvent(new Event('input',{bubbles:true}));
+    calTarget.dispatchEvent(new Event('change',{bubbles:true}));
+  }
+  hideCal();
+}
+document.querySelectorAll('.cal-btn').forEach(inp=>{
+  inp.addEventListener('click',()=>openCal(inp));
+  inp.addEventListener('focus',()=>openCal(inp));
+});
+
+/* ============================================================
+   قائمة مواضعة الموظفين (اختيار أو كتابة)
+============================================================ */
+let comboPop=null,comboTarget=null,comboGetter=null;
+function ensureCombo(){
+  if(comboPop)return;
+  comboPop=document.createElement('div');
+  comboPop.className='combo-pop';
+  document.body.appendChild(comboPop);
+  document.addEventListener('mousedown',e=>{
+    if(!comboPop.style.display||comboPop.style.display==='none')return;
+    if(comboPop.contains(e.target))return;
+    if(comboTarget&&(e.target===comboTarget||comboTarget.contains(e.target)))return;
+    comboPop.style.display='none';
+  });
+  window.addEventListener('scroll',()=>{comboPop.style.display='none';},true);
+  window.addEventListener('resize',()=>{comboPop.style.display='none';});
+}
+function hideCombo(){if(comboPop)comboPop.style.display='none';}
+function attachCombo(sel,getter){
+  const inp=$(sel);if(!inp){console.warn('combo missing '+sel);return;}
+  inp.addEventListener('click',()=>{openCombo(inp,getter);});
+  inp.addEventListener('focus',()=>{openCombo(inp,getter);});
+  inp.addEventListener('input',()=>{openCombo(inp,getter);});
+}
+function openCombo(inp,getter){
+  ensureCombo();
+  comboTarget=inp;comboGetter=getter;
+  renderCombo();
+  const r=inp.getBoundingClientRect();
+  comboPop.style.display='block';
+  let left=r.right-Math.max(240,comboPop.offsetWidth||240);
+  if(left<8)left=8;
+  if(left+comboPop.offsetWidth>window.innerWidth-8)left=window.innerWidth-8-comboPop.offsetWidth;
+  let top=r.bottom+6;
+  if(top+Math.min(comboPop.offsetHeight||200,270)>window.innerHeight-8)top=Math.max(8,r.top-comboPop.offsetHeight-6);
+  comboPop.style.left=left+'px';comboPop.style.top=top+'px';
+}
+function renderCombo(){
+  if(!comboTarget)return;
+  const typed=comboTarget.value.trim();
+  const names=allAgentNames();
+  let items=names.filter(n=>!typed||n.toLowerCase().includes(typed.toLowerCase())).slice(0,14);
+  const exact=names.some(n=>n.toLowerCase()===typed.toLowerCase());
+  let html='';
+  if(!items.length&&!typed)html='<div class="combo-item empty">مفيش موظفين لسه — اكتب الاسم واختار "إضافة"</div>';
+  items.forEach(n=>{
+    html+='<div class="combo-item" data-v="'+esc(n)+'">'+(n===typed?'✓ ':'')+esc(n)+'</div>';
+  });
+  if(typed&&!exact)html+='<div class="combo-item add" data-add="1">＋ إضافة الموظف «'+esc(typed)+'»</div>';
+  comboPop.innerHTML=html;
+  comboPop.querySelectorAll('.combo-item').forEach(el=>{
+    el.addEventListener('mousedown',e=>{
+      e.preventDefault();
+      if(el.dataset.add){
+        ags.push(typed);saveLS();
+        toast('✔ تم إضافة '+typed+' لقائمة الموظفين');
+      }
+      comboTarget.value=el.dataset.v||typed;
+      comboTarget.dispatchEvent(new Event('input',{bubbles:true}));
+      comboTarget.dispatchEvent(new Event('change',{bubbles:true}));
+      hideCombo();
+    });
+  });
+}
+attachCombo('#fAgent',allAgentNames);
+attachCombo('#epiAgent',allAgentNames);
+
+/* ============================================================
+   التبويبات
+============================================================ */
+function activateTab(name){
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.dataset.tab===name));
+  document.querySelectorAll('.tab-page').forEach(x=>x.classList.remove('active'));
+  $('#tab-'+name).classList.add('active');
+  if(name==='records')renderTables();
+  if(name==='analysis')renderAnalysis();
+}
+document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>activateTab(b.dataset.tab)));
+
+/* ============================================================
+   التحقق
+============================================================ */
+function markInvalid(el,bad){el.classList.toggle('invalid',!!bad);}
+function validateInputs(ids){
+  let ok=true;
+  ids.forEach(id=>{
+    const el=$('#'+id),empty=!String(el.value||'').trim();
+    markInvalid(el,empty);if(empty)ok=false;
+  });
+  if(!ok)toast('⚠️ اكمل البيانات المطلوبة المظللة بالأحمر','warn');
+  return ok;
+}
+
+/* ============================================================
+   أكسبشن
+============================================================ */
+function resetExcForm(){
+  $('#excForm').reset();
+  $('#fDate').value=todayISO();
+  editExcId=null;$('#excSubmit').textContent='✔ حفظ الأكسبشن';$('#excCancel').style.display='none';
+}
+function saveExc(e){
+  e.preventDefault();
+  if(!validateInputs(['fDate','fAgent','fContact','fIssue','fExc']))return;
+  const rec={
+    id:editExcId||genId(),
+    date:$('#fDate').value,agent:$('#fAgent').value.trim(),
+    contact:$('#fContact').value.trim(),issue:$('#fIssue').value,
+    exctype:$('#fExc').value,amount:parseFloat($('#fAmount').value)||0,
+    desc:$('#fDesc').value.trim()
+  };
+  if(editExcId){rec._synced=false;exc=exc.map(r=>r.id===editExcId?rec:r);toast('✔ تم تحديث السجل');}
+  else{rec._synced=false;exc.unshift(rec);toast('✔ تم حفظ الأكسبشن للموظف '+rec.agent);}
+  editExcId=null;$('#excSubmit').textContent='✔ حفظ الأكسبشن';$('#excCancel').style.display='none';
+  saveLS();resetExcForm();renderTables();
+  pushRec('exc',rec);
+}
+function editExc(id){
+  const r=exc.find(x=>x.id===id);if(!r)return;
+  editExcId=id;
+  $('#fDate').value=r.date;$('#fAgent').value=r.agent;$('#fContact').value=r.contact;
+  $('#fIssue').value=r.issue;$('#fExc').value=r.exctype;
+  $('#fAmount').value=r.amount||'';$('#fDesc').value=r.desc||'';
+  $('#excSubmit').textContent='⟳ تحديث السجل';$('#excCancel').style.display='inline-flex';
+  activateTab('exc');
+}
+function delExc(id){
+  if(!confirm('متأكد من حذف السجل؟\n(الحذف مش هيتسحب من Google Sheet — امسحه من الشيت بنفسك)'))return;
+  exc=exc.filter(r=>r.id!==id);saveLS();renderTables();toast('🗑 تم الحذف');
+}
+on('excForm','submit',saveExc);
+on('excReset','click',resetExcForm);
+on('excCancel','click',()=>{resetExcForm();toast('الغيت التعديل');});
+
+/* ============================================================
+   مشاكل الموظفين
+============================================================ */
+['epiName','epiPhone','epiMobileType','epiBranch','epiAgent','epiComplaint'].forEach(id=>on(id,'input',()=>markInvalid($('#'+id),false)));
+function resetEmpForm(){
+  $('#empForm').reset();
+  $('#epiEntryDate').value=todayISO();
+  editEmpId=null;$('#empSubmit').textContent='✔ حفظ الشكوي';$('#empCancel').style.display='none';
+}
+function saveEmp(e){
+  e.preventDefault();
+  if(!validateInputs(['epiName','epiPhone','epiMobileType','epiBranch','epiAgent','epiComplaint']))return;
+  const rec={
+    id:editEmpId||genId(),
+    entryDate:$('#epiEntryDate').value||todayISO(),
+    name:$('#epiName').value.trim(),phone:$('#epiPhone').value.trim(),
+    mobileType:$('#epiMobileType').value.trim(),branch:$('#epiBranch').value,
+    agent:$('#epiAgent').value.trim(),complaint:$('#epiComplaint').value.trim()
+  };
+  if(editEmpId){rec._synced=false;emp=emp.map(r=>r.id===editEmpId?rec:r);toast('✔ تم تحديث السجل');}
+  else{rec._synced=false;emp.unshift(rec);toast('✔ تم حفظ شكوي العميل '+rec.name);}
+  editEmpId=null;$('#empSubmit').textContent='✔ حفظ الشكوي';$('#empCancel').style.display='none';
+  saveLS();resetEmpForm();refreshDatalists();renderTables();
+  pushRec('emp',rec);
+}
+function editEmp(id){
+  const r=emp.find(x=>x.id===id);if(!r)return;
+  editEmpId=id;
+  $('#epiName').value=r.name;$('#epiPhone').value=r.phone;$('#epiMobileType').value=r.mobileType;
+  $('#epiBranch').value=r.branch;$('#epiAgent').value=r.agent;$('#epiComplaint').value=r.complaint||'';
+  $('#epiEntryDate').value=r.entryDate||todayISO();
+  $('#empSubmit').textContent='⟳ تحديث السجل';$('#empCancel').style.display='inline-flex';
+  activateTab('emp');
+}
+function delEmp(id){
+  if(!confirm('متأكد من حذف السجل؟\n(الحذف مش هيتسحب من Google Sheet — امسحه من الشيت بنفسك)'))return;
+  emp=emp.filter(r=>r.id!==id);saveLS();renderTables();toast('🗑 تم الحذف');
+}
+on('empForm','submit',saveEmp);
+on('empReset','click',resetEmpForm);
+on('empCancel','click',()=>{resetEmpForm();toast('الغيت التعديل');});
+
+/* ============================================================
+   مشاكل المنتجات
+============================================================ */
+['pcName','pcMobileType','pcMobileNum','pcProduct','pcPurchase'].forEach(id=>on(id,'input',()=>markInvalid($('#'+id),false)));
+function resetProdForm(){
+  $('#prodForm').reset();
+  $('#pcEntryDate').value=todayISO();
+  editProdId=null;$('#prodSubmit').textContent='✔ حفظ المشكلة';$('#prodCancel').style.display='none';
+}
+function saveProd(e){
+  e.preventDefault();
+  if(!validateInputs(['pcName','pcMobileType','pcMobileNum','pcProduct','pcPurchase']))return;
+  const rec={
+    id:editProdId||genId(),
+    entryDate:$('#pcEntryDate').value||todayISO(),
+    name:$('#pcName').value.trim(),mobileType:$('#pcMobileType').value.trim(),
+    mobileNum:$('#pcMobileNum').value.trim(),product:$('#pcProduct').value.trim(),
+    purchase:$('#pcPurchase').value,desc:$('#pcDesc').value.trim()
+  };
+  if(editProdId){rec._synced=false;prod=prod.map(r=>r.id===editProdId?rec:r);toast('✔ تم تحديث السجل');}
+  else{rec._synced=false;prod.unshift(rec);toast('✔ تم حفظ مشكلة المنتج');}
+  editProdId=null;$('#prodSubmit').textContent='✔ حفظ المشكلة';$('#prodCancel').style.display='none';
+  saveLS();resetProdForm();refreshDatalists();renderTables();
+  pushRec('prod',rec);
+}
+function editProd(id){
+  const r=prod.find(x=>x.id===id);if(!r)return;
+  editProdId=id;
+  $('#pcName').value=r.name;$('#pcPurchase').value=r.purchase;
+  $('#pcMobileType').value=r.mobileType;$('#pcMobileNum').value=r.mobileNum;
+  $('#pcProduct').value=r.product;$('#pcDesc').value=r.desc||'';
+  $('#pcEntryDate').value=r.entryDate||todayISO();
+  $('#prodSubmit').textContent='⟳ تحديث السجل';$('#prodCancel').style.display='inline-flex';
+  activateTab('prod');
+}
+function delProd(id){
+  if(!confirm('متأكد من حذف السجل؟\n(الحذف مش هيتسحب من Google Sheet — امسحه من الشيت بنفسك)'))return;
+  prod=prod.filter(r=>r.id!==id);saveLS();renderTables();toast('🗑 تم الحذف');
+}
+on('prodForm','submit',saveProd);
+on('prodReset','click',resetProdForm);
+on('prodCancel','click',()=>{resetProdForm();toast('الغيت التعديل');});
+
+function refreshDatalists(){
+  const um=[...new Set([...prod.map(r=>r.mobileType),...emp.map(r=>r.mobileType)].filter(Boolean))].sort();
+  const up=[...new Set(prod.map(r=>r.product).filter(Boolean))].sort();
+  $('#dlMobile').innerHTML=um.map(v=>'<option value="'+esc(v)+'">').join('');
+  $('#dlEpiMobile').innerHTML=um.map(v=>'<option value="'+esc(v)+'">').join('');
+  $('#dlProduct').innerHTML=up.map(v=>'<option value="'+esc(v)+'">').join('');
+}
+
+/* ============================================================
+   جداول السجلات
+============================================================ */
+function excPill(v){const f=EXC_TYPES.find(t=>t[0]===v);return '<span class="p '+(f?f[1]:'p-blue')+'">'+esc(v||'-')+'</span>';}
+function issuePill(v){return '<span class="p p-blue">'+esc(v||'-')+'</span>';}
+function syncDot(rec){return '<span class="dot '+(rec._synced?'on':'off')+'" title="'+(rec._synced?'متزامن مع Google Sheet':'مش متزامن — استخدم "مزامنة الكل"')+'"></span>';}
+function renderTables(){
+  const q=($('#excSearch').value||'').toLowerCase();
+  const rowsF=exc.filter(r=>!q||[r.agent,r.contact,r.issue,r.exctype,r.desc].join(' ').toLowerCase().includes(q));
+  $('#excCount').textContent='('+exc.length+' سجل)';
+  $('#tbExc').innerHTML='<thead><tr><th>الحفظ</th><th>#</th><th>التاريخ</th><th>الموظف</th><th>رقم التواصل</th><th>المشكلة</th><th>الأكسبشن</th><th>المبلغ</th><th>الوصف</th><th>إجراءات</th></tr></thead><tbody>'+
+    (rowsF.length?rowsF.map((r,i)=>'<tr><td>'+syncDot(r)+'</td><td>'+(i+1)+'</td><td>'+esc(r.date)+'</td><td><b>'+esc(r.agent)+'</b></td><td>'+esc(r.contact)+'</td><td>'+issuePill(r.issue)+'</td><td>'+excPill(r.exctype)+'</td><td>'+(r.amount?money(r.amount)+' ج':'—')+'</td><td class="wrap">'+esc(r.desc||'—')+'</td>'+
+      '<td><button class="btn small" onclick="editExc(\''+r.id+'\')">✎</button> <button class="btn small danger" onclick="delExc(\''+r.id+'\')">🗑</button></td></tr>').join('')
+    :'<tr><td colspan="10" style="text-align:center;color:var(--ink2);padding:26px">مفيش سجلات لسه — ابدأ بإدخال أول أكسبشن ✍️</td></tr>')+'</tbody>';
+
+  const q2=($('#empSearch').value||'').toLowerCase();
+  const rowsE=emp.filter(r=>!q2||[r.name,r.phone,r.mobileType,r.branch,r.agent,r.complaint].join(' ').toLowerCase().includes(q2));
+  $('#empCount').textContent='('+emp.length+' سجل)';
+  $('#tbEmp').innerHTML='<thead><tr><th>الحفظ</th><th>#</th><th>اسم العميل</th><th>رقم العميل</th><th>نوع الموبايل</th><th>الفرع</th><th>اسم الموظف</th><th>الشكوي</th><th>إجراءات</th></tr></thead><tbody>'+
+    (rowsE.length?rowsE.map((r,i)=>'<tr><td>'+syncDot(r)+'</td><td>'+(i+1)+'</td><td><b>'+esc(r.name)+'</b></td><td>'+esc(r.phone)+'</td><td>'+esc(r.mobileType)+'</td><td>'+esc(r.branch)+'</td><td>'+esc(r.agent)+'</td><td class="wrap">'+esc(r.complaint||'—')+'</td>'+
+      '<td><button class="btn small" onclick="editEmp(\''+r.id+'\')">✎</button> <button class="btn small danger" onclick="delEmp(\''+r.id+'\')">🗑</button></td></tr>').join('')
+    :'<tr><td colspan="9" style="text-align:center;color:var(--ink2);padding:26px">مفيش سجلات لسه — ابدأ بتسجيل أول شكوي ✍️</td></tr>')+'</tbody>';
+
+  const q3=($('#prodSearch').value||'').toLowerCase();
+  const rowsP=prod.filter(r=>!q3||[r.name,r.mobileType,r.mobileNum,r.product,r.desc].join(' ').toLowerCase().includes(q3));
+  $('#prodCount').textContent='('+prod.length+' سجل)';
+  $('#tbProd').innerHTML='<thead><tr><th>الحفظ</th><th>#</th><th>العميل</th><th>نوع الموبايل</th><th>رقم الموبايل</th><th>المنتج</th><th>تاريخ الشراء</th><th>الوصف</th><th>إجراءات</th></tr></thead><tbody>'+
+    (rowsP.length?rowsP.map((r,i)=>'<tr><td>'+syncDot(r)+'</td><td>'+(i+1)+'</td><td><b>'+esc(r.name)+'</b></td><td>'+esc(r.mobileType)+'</td><td>'+esc(r.mobileNum)+'</td><td class="wrap">'+esc(r.product)+'</td><td>'+esc(r.purchase)+'</td><td class="wrap">'+esc(r.desc||'—')+'</td>'+
+      '<td><button class="btn small" onclick="editProd(\''+r.id+'\')">✎</button> <button class="btn small danger" onclick="delProd(\''+r.id+'\')">🗑</button></td></tr>').join('')
+    :'<tr><td colspan="9" style="text-align:center;color:var(--ink2);padding:26px">مفيش سجلات لسه — ابدأ بتسجيل أول مشكلة ✍️</td></tr>')+'</tbody>';
+}
+on('excSearch','input',renderTables);
+on('empSearch','input',renderTables);
+on('prodSearch','input',renderTables);
+
+/* ============================================================
+   تحليل البيانات
+============================================================ */
+Chart.defaults.font.family="'Tajawal','Segoe UI',sans-serif";
+Chart.defaults.color="#41707c";
+Chart.defaults.borderColor="rgba(15,76,92,.08)";
+function baseOpts(){return{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:9,boxHeight:9,usePointStyle:true,pointStyle:'circle',padding:14}},tooltip:{backgroundColor:'#0f4c5c',padding:12,cornerRadius:10,titleColor:'#fff',bodyColor:'#fff'}}};}
+function draw(id,cfg){if(charts[id])charts[id].destroy();const el=document.getElementById(id);if(el)charts[id]=new Chart(el,cfg);}
+function barOpts(h){const o=baseOpts();o.scales={x:{grid:{color:'rgba(15,76,92,.07)'},beginAtZero:true,ticks:{precision:0}},y:{grid:{display:!h},ticks:{precision:0}}};if(h){const t=o.scales.x;o.scales.x=o.scales.y;o.scales.y=t;}return o;}
+function donutOpts(){const o=baseOpts();o.cutout='62%';o.plugins.legend.position='bottom';return o;}
+function countBy(rows,fn){const m=new Map();rows.forEach(r=>{const k=fn(r);if(k==null||k==='')return;m.set(k,(m.get(k)||0)+1);});return[...m.entries()].sort((a,b)=>b[1]-a[1]);}
+function topN(e,n){return e.slice(0,n);}
+function monthKeys(dates){return[...new Set(dates.filter(Boolean).map(d=>String(d).slice(0,7)))].sort();}
+function monthLabel(k){const[y,m]=k.split('-');return new Date(y,m-1,1).toLocaleString('ar-EG',{month:'short'})+' '+y.slice(2);}
+
+function filteredData(){
+  const from=$('#aFrom').value,to=$('#aTo').value;
+  const inR=d=>(!from||d>=from)&&(!to||d<=to);
+  return [exc.filter(r=>inR(r.date)),emp.filter(r=>inR(r.entryDate)),prod.filter(r=>inR(r.purchase))];
+}
+function renderAnalysis(){
+  const [E,M,P]=filteredData();
+  $('#kExc').textContent=fmt(E.length);
+  $('#kRefund').textContent=money(E.reduce((a,r)=>a+(+r.amount||0),0))+' ج';
+  $('#kEmp').textContent=fmt(M.length);
+  $('#kProd').textContent=fmt(P.length);
+  const topIssue=countBy(E,r=>r.issue)[0];
+  $('#kTopIssue').textContent=topIssue?topIssue[0]:'—';
+
+  const keys=monthKeys([...E.map(r=>r.date),...M.map(r=>r.entryDate),...P.map(r=>r.purchase)]);
+  draw('chAllMonthly',{type:'line',data:{labels:keys.map(monthLabel),datasets:[
+    {label:'أكسبشن',data:keys.map(k=>E.filter(r=>String(r.date).startsWith(k)).length),borderColor:'#2fbf71',tension:.4,borderWidth:3,pointRadius:3,fill:true,backgroundColor:'rgba(47,191,113,.10)',cubicInterpolationMode:'monotone'},
+    {label:'شكاوي موظفين',data:keys.map(k=>M.filter(r=>String(r.entryDate).startsWith(k)).length),borderColor:'#ef4444',tension:.4,borderWidth:3,pointRadius:3,fill:true,backgroundColor:'rgba(239,68,68,.08)',cubicInterpolationMode:'monotone'},
+    {label:'مشاكل منتجات',data:keys.map(k=>P.filter(r=>String(r.purchase).startsWith(k)).length),borderColor:'#0ea5b7',tension:.4,borderWidth:3,pointRadius:3,fill:true,backgroundColor:'rgba(14,165,183,.09)',cubicInterpolationMode:'monotone'}
+  ]},options:baseOpts()});
+
+  const ty=countBy(E,r=>r.exctype);
+  draw('chExType',{type:'doughnut',data:{labels:ty.map(t=>t[0]),datasets:[{data:ty.map(t=>t[1]),backgroundColor:PAL,borderWidth:2,borderColor:'rgba(255,255,255,.8)'}]},options:donutOpts()});
+
+  const is=countBy(E,r=>r.issue);
+  draw('chExIssue',{type:'doughnut',data:{labels:is.map(t=>t[0]),datasets:[{data:is.map(t=>t[1]),backgroundColor:PAL,borderWidth:2,borderColor:'rgba(255,255,255,.8)'}]},options:donutOpts()});
+
+  const ag=topN(countBy(E,r=>r.agent),12);
+  draw('chExAgent',{type:'bar',data:{labels:ag.map(a=>a[0]),datasets:[{data:ag.map(a=>a[1]),backgroundColor:'#8b5cf6',borderRadius:6}]},options:barOpts(true)});
+
+  const eg=topN(countBy(M,r=>r.agent),12);
+  draw('chEpiAgent',{type:'bar',data:{labels:eg.map(a=>a[0]),datasets:[{data:eg.map(a=>a[1]),backgroundColor:'#ef4444',borderRadius:6}]},options:barOpts(true)});
+
+  const eb=topN(countBy(M,r=>r.branch),12);
+  draw('chEpiBranch',{type:'bar',data:{labels:eb.map(a=>a[0]),datasets:[{data:eb.map(a=>a[1]),backgroundColor:'#f59e0b',borderRadius:6}]},options:barOpts(true)});
+
+  const mb=topN(countBy(P,r=>r.mobileType),10);
+  draw('chPrMobile',{type:'bar',data:{labels:mb.map(m=>m[0]),datasets:[{data:mb.map(m=>m[1]),backgroundColor:'#0ea5b7',borderRadius:6}]},options:barOpts(true)});
+
+  const pr=topN(countBy(P,r=>r.product),10);
+  draw('chPrProduct',{type:'bar',data:{labels:pr.map(p=>p[0]),datasets:[{data:pr.map(p=>p[1]),backgroundColor:'#2fbf71',borderRadius:6}]},options:barOpts(true)});
+}
+on('aClear','click',()=>{$('#aFrom').value='';$('#aTo').value='';renderAnalysis();});
+on('aFrom','change',renderAnalysis);on('aTo','change',renderAnalysis);
+
+/* ============================================================
+   Google Sheets Sync
+============================================================ */
+const sheetURL=()=>localStorage.getItem(LS.gs)||'';
+function setSheetURL(v){if(v)localStorage.setItem(LS.gs,v.trim());else localStorage.removeItem(LS.gs);updateGsUI();}
+function gsErrHint(err){
+  if(!err)return '';
+  if(/NOT-BOUND|getActiveSpreadsheet/i.test(err))return 'السكريبت مش مربوط بالشيت — افتح Apps Script من داخل الشيت نفسه (Extensions ← Apps Script) مش من script.google.com مستقل';
+  if(/syntax|ReferenceError|TypeError/i.test(err))return 'فيه مشكلة في الكود — امسح كل حاجة والصق آخر نسخة من الموقع';
+  return String(err).slice(0,140);
+}
+function pushRec(type,rec){
+  const url=sheetURL();if(!url)return;
+  if(url.indexOf('script.google.com')<0){
+    toast('⚠️ رابط الشيت المحفوظ مش لينك Apps Script — افتح (📄 ربط Google Sheet) وحط لينك script.google.com','warn');
+    return;
+  }
+  const payload={};
+  if(type==='exc')Object.assign(payload,{type:'exc',date:rec.date,agent:rec.agent,contact:rec.contact,issue:rec.issue,exctype:rec.exctype,desc:rec.desc,amount:rec.amount});
+  if(type==='emp')Object.assign(payload,{type:'emp',entryDate:rec.entryDate,name:rec.name,phone:rec.phone,mobileType:rec.mobileType,branch:rec.branch,agent:rec.agent,complaint:rec.complaint});
+  if(type==='prod')Object.assign(payload,{type:'prod',name:rec.name,mobileType:rec.mobileType,mobileNum:rec.mobileNum,product:rec.product,purchase:rec.purchase,desc:rec.desc,entryDate:rec.entryDate});
+  fetch(url,{method:'POST',body:JSON.stringify(payload)})
+    .then(r=>r.text().then(txt=>({status:r.status,txt})))
+    .then(({status,txt})=>{
+      let data=null;try{data=JSON.parse(txt);}catch(_){}
+      if(data&&data.ok){rec._synced=true;saveLS();renderTables();updateGsUI();}
+      else if(data&&!data.ok)toast('⚠️ الشيت رفض السجل — اوغSKTOP'+gsErrHint(data.err),'warn');
+      else if(/^\s*<(!DOCTYPE|html)/i.test(txt))toast('⚠️ الشيت رجّع صفحة HTML بدل الرد — غالبًا النسخة المنشورة قديمة: Deploy ← Manage deployments ← ✏️ ← Version: New version ← Deploy','warn');
+      else toast('⚠️ رد غير متوقع من الشيت ('+(data?data.err||txt.slice(0,60):status)+')','warn');
+    })
+    .catch(()=>{toast('⚠️ فشل رفع السجل للشيت (النت أو الرابط) — السجل محفوظ محليًا ✓ هيترفع تلقائيًا بزرار (مزامنة الكل)','warn');updateGsUI();});
+}
+function syncAll(){
+  const url=sheetURL();
+  if(!url){toast('⚠️ اربط Google Sheet الأول','warn');return;}
+  const pendE=exc.filter(r=>!r._synced),pendM=emp.filter(r=>!r._synced),pendP=prod.filter(r=>!r._synced);
+  const total=pendE.length+pendM.length+pendP.length;
+  if(!total){toast('✔ كله متزامن بالفعل');return;}
+  toast('⟳ جاري مزامنة '+total+' سجل...');
+  fetch(url,{method:'POST',body:JSON.stringify({type:'syncAll',exc:pendE,emp:pendM,prod:pendP})})
+    .then(r=>r.text().then(txt=>({status:r.status,txt})))
+    .then(({status,txt})=>{
+      let data=null;try{data=JSON.parse(txt);}catch(_){}
+      if(data&&data.ok){
+        [...pendE,...pendM,...pendP].forEach(r2=>r2._synced=true);
+        saveLS();renderTables();
+        toast('✔ تم مزامنة '+total+' سجل في الشيت');
+        updateGsUI();
+      }
+      else if(data&&!data.ok)toast('⚠️ الشيت رفض المزامنة — '+gsErrHint(data.err),'warn');
+      else if(/^\s*<(!DOCTYPE|html)/i.test(txt))toast('⚠️ الشيت رجّع صفحة HTML — غالبًا لازم نسخة جديدة من النشر: Deploy ← Manage deployments ← ✏️ ← Version: New version ← Deploy','warn');
+      else toast('⚠️ رد غير متوقع من الشيت ('+(data?data.err||txt.slice(0,60):status)+')','warn');
+    })
+    .catch(()=>toast('⚠️ فشل الاتصال — اتأكد من الرابط (ينتهي بـ /exec) والـ Deployment "Anyone" والنت وحاول تاني','warn'));
+}
+function updateGsUI(){
+  const url=sheetURL();
+  $('#gsUrl').value=url;
+  const pendN=exc.filter(r=>!r._synced).length+emp.filter(r=>!r._synced).length+prod.filter(r=>!r._synced).length;
+  const pb=$('#gsPend');
+  if(pb){
+    if(url&&pendN>0){pb.textContent='⏳ '+pendN+' متزامنة';pb.style.display='inline-block';}
+    else pb.style.display='none';
+  }
+  $('#gsStatus').innerHTML=url
+    ?'الحالة: <b style="color:#0d9488">متصل ✓</b> · <b>'+pendN+'</b> سجل في انتظار المزامنة'
+    :'الحالة: <b style="color:#b45309">مش متصل — الصق الرابط واضغط حفظ</b>';
+}
+on('gsBtn','click',()=>{$('#gsOverlay').classList.add('show');updateGsUI();});
+on('gsOverlay','click',e=>{if(e.target===$('#gsOverlay'))$('#gsOverlay').classList.remove('show');});
+on('gsSave','click',()=>{
+  const v=$('#gsUrl').value.trim();
+  const isWebApp=/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_\-]+\/(exec|dev)(\?.*)?$/.test(v);
+  if(v&&!isWebApp){
+    if(v.indexOf('docs.google.com/spreadsheets')>-1){
+      toast('⚠️ ده لينك الشيت نفسه — محتاج لينك Apps Script (script.google.com). افتح الشيت ← Extensions ← Apps Script ← Deploy ← Web app وانسخ الرابط','warn');
+    }else if(v.indexOf('script.google.com')>-1){
+      toast('⚠️ ده لينك صفحة تعديل الكود (ينتهي بـ /edit) — مش اللي محتاجه! اعمل Deploy ← New deployment ← Web app ← انسخ الرابط اللي ينتهي بـ /exec','warn');
+    }else{
+      toast('⚠️ اللينك مش شكل لينك Apps Script — لازم يبأ: script.google.com/macros/s/... وينتهي بـ /exec','warn');
+    }
+    return;
+  }
+  setSheetURL(v);updateGsUI();
+  toast(v?'✔ تم حفظ الرابط — الحفظ التلقائي شغال':'تم مسح الرابط');
+});
+on('gsClear','click',()=>{setSheetURL('');toast('تم مسح الرابط');});
+on('gsSyncAll','click',syncAll);
+on('gsPend','click',()=>$('#gsOverlay').classList.add('show'));
+on('gsTest','click',()=>{
+  const url=$('#gsUrl').value.trim();
+  if(!url){toast('اكتب/الصق الرابط الأول','warn');return;}
+  if(!/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_\-]+\/(exec|dev)(\?.*)?$/.test(url)){toast('⚠️ اللينك مش لينك Web App — لازم ينتهي بـ /exec','warn');return;}
+  toast('🔌 بجرب الاتصال...');
+  fetch(url,{method:'POST',body:JSON.stringify({type:'ping'})})
+    .then(r=>r.text().then(txt=>({status:r.status,txt})))
+    .then(({status,txt})=>{
+      if(/^\s*<(!DOCTYPE|html)/i.test(txt))toast('⚠️ الشيت رجّع صفحة HTML بدل JSON — النسخة المنشورة قديمة! Deploy ← Manage deployments ← ✏️ ← Version: New version ← Deploy','warn');
+      else{
+        let data=null;try{data=JSON.parse(txt)}catch(_){}
+        if(data&&data.ok)toast('✔ الاتصال شغال وكود التابات العربي شغال — احفظ الرابط');
+        else if(data&&!data.ok)toast('⚠️ الشيت رفض: '+gsErrHint(data.err),'warn');
+        else toast('⚠️ الرد مش JSON ('+txt.slice(0,60)+') — اتأكد من نسخ الكود الجديد ثم New version','warn');
+      }
+    })
+    .catch(()=>toast('⚠️ مفيش رد — اتأكد من الرابط والـ Deployment "Anyone"','warn'));
+});
+on('gsCopy','click',()=>{
+  const code=$('#gsCode').textContent;
+  if(navigator.clipboard){navigator.clipboard.writeText(code).then(()=>toast('📋 تم نسخ كود Apps Script')).catch(()=>toast('حدد الكود بخط اليد وانسخه','warn'));}
+  else toast('حدد الكود بخط اليد وانسخه','warn');
+});
+
+/* ============================================================
+   تصدير / استيراد Excel
+============================================================ */
+on('exportBtn','click',()=>{
+  try{
+    const wb=XLSX.utils.book_new();
+    const s1=exc.map(r=>({'Date':r.date,'Agent':r.agent,'Contact Number':r.contact,'Issue':r.issue,'Excibsons':r.exctype,'Description':r.desc||'','Amount Refund':r.amount||''}));
+    const s2=emp.map(r=>({'Date':r.entryDate,'Customer':r.name,'Customer Number':r.phone,'Mobile Type':r.mobileType,'Branch':r.branch,'Employee Name':r.agent,'Complaint':r.complaint||''}));
+    const s3=prod.map(r=>({'Customer':r.name,'Mobile Type':r.mobileType,'Mobile Number':r.mobileNum,'Product':r.product,'Purchase Date':r.purchase,'Problem':r.desc||'','Recorded On':r.entryDate}));
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(s1),'Excibsons');
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(s2),'Employee Issues');
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(s3),'Product Issues');
+    XLSX.writeFile(wb,'Company_Data_'+todayISO()+'.xlsx');
+    toast('✔ تم تصدير ملف Excel');
+  }catch(e){console.error(e);toast('⚠️ حصل خطأ في التصدير','warn');}
+});
+
+on('importFile','change',async e=>{
+  const f=e.target.files[0];if(!f)return;
+  try{
+    const wb=XLSX.read(await f.arrayBuffer(),{type:'array',cellDates:true});
+    let nE=0,nM=0,nP=0;
+    wb.SheetNames.forEach(nm=>{
+      const rows=XLSX.utils.sheet_to_json(wb.Sheets[nm],{defval:''});
+      if(!rows.length)return;
+      const H=Object.keys(rows[0]);
+      const pk=(keys,ar)=>{for(const k of keys){const h=H.find(x=>String(x).toLowerCase().includes(k.toLowerCase()));if(h!=null)return h;}if(ar)for(const k of ar){const h=H.find(x=>String(x).includes(k));if(h!=null)return h;}return null;};
+      const isEmp=nm.toLowerCase().includes('employee')||/موظف|شكوي/.test(nm);
+      const isProd=nm.toLowerCase().includes('product')||/منتج/.test(nm);
+      if(isEmp){
+        const hN=pk(['customer'],['العميل']),hP=pk(['phone','number'],['رقم العميل','رقم']),
+             hM=pk(['mobile type','mobile'],['نوع الموبايل','نوع']),hB=pk(['branch'],['الفرع','فرع']),
+             hA=pk(['employee','agent'],['اسم الموظف','الموظف']),hC=pk(['complaint','problem','desc'],['الشكوي','شكوي','وصف']),
+             hD=pk(['date'],['التاريخ']);
+        rows.forEach(r=>{
+          if(!r[hN]&&!r[hA])return;
+          emp.unshift({_synced:true,id:genId(),entryDate:hxDate(hD?r[hD]:'')||todayISO(),
+            name:String(r[hN]||'').trim(),phone:hP?String(r[hP]||'').trim():'',
+            mobileType:hM?String(r[hM]||'').trim():'',branch:hB?String(r[hB]||'').trim():'غير محدد',
+            agent:hA?String(r[hA]||'').trim():'',complaint:hC?String(r[hC]||'').trim():''});
+          nM++;
+        });
+      }else if(isProd){
+        const hN=pk(['customer','name'],['العميل']),hM=pk(['mobile type','mobile'],['نوع']),
+             hMN=pk(['mobile number','serial'],['رقم الموبايل']),hP=pk(['product'],['المنتج']),
+             hD=pk(['purchase','date'],['الشراء','التاريخ']),hDe=pk(['problem','desc'],['المشكلة','وصف']);
+        rows.forEach(r=>{
+          if(!r[hN]&&!r[hP])return;
+          prod.unshift({_synced:true,id:genId(),entryDate:todayISO(),
+            name:String(r[hN]||'').trim(),mobileType:String(r[hM]||'').trim(),
+            mobileNum:hMN?String(r[hMN]||'').trim():'',
+            product:hP?String(r[hP]||'').trim():'',
+            purchase:hxDate(hD?r[hD]:''),desc:hDe?String(r[hDe]||'').trim():''});
+          nP++;
+        });
+      }else{
+        const hD=pk(['date'],['التاريخ']),hA=pk(['agent'],['موظف','الموظف']),
+             hC=pk(['contact'],['تواصل','موبايل']),hI=pk(['issue'],['مشكلة']),
+             hE=pk(['excibson','exception'],['اكسبشن','أكسبشن']),hDe=pk(['desc','descript'],['وصف','الوصف']),
+             hR=pk(['amount','refund'],['مبلغ','استرداد']);
+        rows.forEach(r=>{
+          if(!r[hA])return;
+          exc.unshift({_synced:true,id:genId(),date:hxDate(hD?r[hD]:''),
+            agent:String(r[hA]||'').trim(),contact:String(r[hC]||'').trim(),
+            issue:hI?String(r[hI]||'').trim():'Others',
+            exctype:hE?String(r[hE]||'').trim():'Others',
+            amount:parseFloat(String(hR?r[hR]||'0':'0').replace(/[^\d.]/g,''))||0,
+            desc:hDe?String(r[hDe]||'').trim():''});
+          nE++;
+        });
+      }
+    });
+    if(!nE&&!nM&&!nP){toast('⚠️ مفيش صفوف معروفة في الملف','warn');return;}
+    saveLS();refreshDatalists();renderTables();
+    toast('✔ تم الاستيراد: '+nE+' أكسبشن · '+nM+' شكوي موظف · '+nP+' مشكلة منتج');
+  }catch(err){console.error(err);toast('⚠️ حصل خطأ في قراءة الملف','warn');}
+  e.target.value='';
+});
+function hxDate(v){
+  if(v==null||v==='')return '';
+  if(v instanceof Date&&!isNaN(v))return v.getFullYear()+'-'+String(v.getMonth()+1).padStart(2,'0')+'-'+String(v.getDate()).padStart(2,'0');
+  if(typeof v==='number'){const d=new Date(Date.UTC(1899,11,30)+v*86400000);return isNaN(d)?'':d.toISOString().slice(0,10);}
+  const t=new Date(v);if(!isNaN(t))return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
+  const m=String(v).match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+  if(m){let a=+m[1],b=+m[2],c=+m[3];if(c<100)c+=2000;if(b>12&&a<=12){const t2=a;a=b;b=t2;}return c+'-'+String(a).padStart(2,'0')+'-'+String(b).padStart(2,'0');}
+  return '';
+}
+
+/* ============================================================
+   التشغيل
+============================================================ */
+loadLS();
+/* ربط سريع للموبايل: افتح اللينك مرة واحدة بالشكل ?gs=<رابط الويب آب> — يتحفظ تلقائيًا */
+try{
+  const _q=new URLSearchParams(location.search).get('gs');
+  if(_q&&!localStorage.getItem(LS.gs))localStorage.setItem(LS.gs,_q);
+}catch(_){}
+(function fillBranches(){
+  const s=$('#epiBranch');
+  BRANCHES.forEach(b=>{const o=document.createElement('option');o.value=b;o.textContent=b;s.appendChild(o);});
+})();
+resetExcForm();
+resetEmpForm();
+resetProdForm();
+refreshDatalists();
+renderTables();
+renderAnalysis();
+updateGsUI();
+</script>
+</body>
+</html>
