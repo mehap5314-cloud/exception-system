@@ -134,7 +134,9 @@
   .dot.on{background:#2fbf71}.dot.off{background:#f59e0b}
   /* ===== KPI & charts ===== */
   .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:13px;margin-bottom:14px}
-  .kpi{display:flex;align-items:center;gap:12px;padding:15px 17px;background:var(--glass2);backdrop-filter:blur(14px);border:1px solid var(--bord);border-radius:18px;transition:.25s;box-shadow:0 8px 26px rgba(23,74,88,.1)}
+  .kpi{display:flex;align-items:center;gap:12px;padding:15px 17px;background:var(--glass2);backdrop-filter:blur(14px);border:1px solid var(--bord);border-radius:18px;transition:.25s;box-shadow:0 8px 26px rgba(23,74,88,.1);cursor:pointer}
+  .kpi:hover{transform:translateY(-3px);border-color:#2fbf71;box-shadow:0 14px 34px rgba(47,191,113,.22)}
+  .kpi:active{transform:scale(.97)}
   .kpi:hover{transform:translateY(-3px)}
   .kpi .num{font-family:'Outfit';font-size:1.7rem;font-weight:800;line-height:1.1;color:var(--ink)}
   .kpi .lbl{font-size:.75rem;color:var(--ink2);font-weight:800;margin-top:2px}
@@ -336,11 +338,11 @@
         <span class="count" style="align-self:center">📊 التحليل بيشتغل على السجلات المسجلة هنا أو المستوردة من Excel</span>
       </div>
       <div class="kpi-grid">
-        <div class="kpi"><div class="ic">🎫</div><div><div class="num" id="kExc">0</div><div class="lbl">عدد الأكسبشن</div></div></div>
-        <div class="kpi"><div class="ic">💸</div><div><div class="num" id="kRefund">0</div><div class="lbl">إجمالي مبالغ الاسترداد</div></div></div>
-        <div class="kpi"><div class="ic">👥</div><div><div class="num" id="kEmp">0</div><div class="lbl">شكاوي الموظفين</div></div></div>
-        <div class="kpi"><div class="ic">📱</div><div><div class="num" id="kProd">0</div><div class="lbl">مشاكل المنتجات</div></div></div>
-        <div class="kpi"><div class="ic">🖥</div><div><div class="num" id="kTopIssue">—</div><div class="lbl">أكثر مشكلة تكرارًا</div></div></div>
+        <div class="kpi" data-kpi="exc" title="اضغط لعرض السجل"><div class="ic">🎫</div><div><div class="num" id="kExc">0</div><div class="lbl">عدد الأكسبشن</div></div></div>
+        <div class="kpi" data-kpi="refund" title="اضغط لعرض السجل"><div class="ic">💸</div><div><div class="num" id="kRefund">0</div><div class="lbl">إجمالي مبالغ الاسترداد</div></div></div>
+        <div class="kpi" data-kpi="emp" title="اضغط لعرض السجل"><div class="ic">👥</div><div><div class="num" id="kEmp">0</div><div class="lbl">شكاوي الموظفين</div></div></div>
+        <div class="kpi" data-kpi="prod" title="اضغط لعرض السجل"><div class="ic">📱</div><div><div class="num" id="kProd">0</div><div class="lbl">مشاكل المنتجات</div></div></div>
+        <div class="kpi" data-kpi="top" title="اضغط لعرض السجل"><div class="ic">🖥</div><div><div class="num" id="kTopIssue">—</div><div class="lbl">أكثر مشكلة تكرارًا</div></div></div>
       </div>
     </div>
     <div class="grid">
@@ -357,6 +359,18 @@
 </main>
 
 <!-- ================= مودال Google Sheet ================= -->
+<div class="overlay" id="kpiOverlay">
+  <div class="modal" style="max-width:920px">
+    <h3 id="kpiTitle">—</h3>
+    <p class="count" style="margin:4px 0 10px" id="kpiSub"></p>
+    <div style="max-height:55vh;overflow:auto;border:1px solid var(--bord);border-radius:14px">
+      <table style="width:100%;border-collapse:collapse;font-size:.85rem" id="kpiTable"></table>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-start">
+      <button class="btn" id="kpiClose">✕ إغلاق</button>
+    </div>
+  </div>
+</div>
 <div class="overlay" id="gsOverlay">
   <div class="modal">
     <h3>📄 الربط بـ Google Sheet — الحفظ التلقائي</h3>
@@ -928,6 +942,28 @@ function renderAnalysis(){
 }
 on('aClear','click',()=>{$('#aFrom').value='';$('#aTo').value='';renderAnalysis();});
 on('aFrom','change',renderAnalysis);on('aTo','change',renderAnalysis);
+
+/* ---- كروت المؤشرات التفاعلية: اضغط الكارت يفتح سجلاته ---- */
+function esc(v){return String(v==null?'':v).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));}
+function openKpi(kind,extra){
+  const [E,M,P]=filteredData();
+  let title='',rows=[],headers=[];
+  if(kind==='exc'){title='🎫 كل الأكسبشن';headers=['التاريخ','الموظف','رقم التواصل','المشكلة','النوع','المبلغ','الوصف'];rows=E.map(r=>[r.date,r.agent,esc(r.contact),r.issue,r.exctype,money(+r.amount||0),esc(r.desc)]);}
+  if(kind==='refund'){const R=E.filter(r=>+r.amount>0);title='💸 سجلات فيها مبالغ استرداد';headers=['التاريخ','الموظف','المشكلة','النوع','المبلغ','الوصف'];rows=R.map(r=>[r.date,r.agent,r.issue,r.exctype,money(+r.amount||0),esc(r.desc)]);}
+  if(kind==='emp'){title='👥 شكاوي الموظفين';headers=['التاريخ','العميل','رقم العميل','نوع الموبايل','الفرع','الموظف','الشكوي'];rows=M.map(r=>[r.entryDate,esc(r.name),esc(r.phone),r.mobileType,r.branch,esc(r.agent),esc(r.complaint)]);}
+  if(kind==='prod'){title='📱 مشاكل المنتجات';headers=['العميل','نوع الموبايل','رقم الموبايل','المنتج','تاريخ الشراء','المشكلة'];rows=P.map(r=>[esc(r.name),r.mobileType,esc(r.mobileNum),r.product,r.purchase,esc(r.desc)]);}
+  if(kind==='top'){const top=countBy(E,r=>r.issue)[0];const issue=top?top[0]:extra;title='🖥 أكثر مشكلة تكرارًا: '+issue;headers=['التاريخ','الموظف','رقم التواصل','النوع','المبلغ','الوصف'];rows=E.filter(r=>r.issue===issue).map(r=>[r.date,r.agent,esc(r.contact),r.exctype,money(+r.amount||0),esc(r.desc)]);}
+  $('#kpiTitle').textContent=title;
+  $('#kpiSub').textContent=fmt(rows.length)+' سجل'+($('#aFrom').value||$('#aTo').value?' · حسب الفلتر الزمني المحدد':'');
+  $('#kpiTable').innerHTML=rows.length
+    ?'<tr>'+headers.map(h=>'<th style="padding:9px 11px;background:rgba(47,191,113,.12);color:#065f46;border-bottom:2px solid var(--bord);font-weight:800;white-space:nowrap">'+h+'</th>').join('')+'</tr>'
+     +rows.map(r=>'<tr>'+r.map(c=>'<td style="padding:8px 11px;border-bottom:1px solid rgba(0,0,0,.06)">'+(c===''||c==null?'—':c)+'</td>').join('')+'</tr>').join('')
+    :'<tr><td style="padding:22px;text-align:center;color:var(--ink2)">— مفيش سجلات تطابق الكارت في الفترة المحددة —</td></tr>';
+  $('#kpiOverlay').classList.add('show');
+}
+document.querySelectorAll('.kpi[data-kpi]').forEach(k=>k.addEventListener('click',()=>openKpi(k.dataset.kpi)));
+on('kpiClose','click',()=>$('#kpiOverlay').classList.remove('show'));
+on('kpiOverlay','click',e=>{if(e.target===$('#kpiOverlay'))$('#kpiOverlay').classList.remove('show');});
 
 /* ============================================================
    Google Sheets Sync
