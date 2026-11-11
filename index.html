@@ -3,8 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#8eb1b6">
+<meta name="theme-color" content="#0ea5b7">
 <title>نظام إدخال البيانات — الأكسبشن ومشاكل الموظفين والمنتجات</title>
+<link rel="icon" type="image/svg+xml" href="icon.svg">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="نظام البيانات">
+<meta name="mobile-web-app-capable" content="yes">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&family=Outfit:wght@500;700;800&display=swap" rel="stylesheet">
@@ -212,6 +219,7 @@
     <button class="btn" id="exportBtn">⬇ تصدير Excel</button>
     <label class="btn" for="importFile">⬆ استيراد Excel</label>
     <input type="file" id="importFile" accept=".xlsx,.xls,.csv" hidden>
+    <button class="btn success" id="installBtn" style="display:none" title="تثبيت الموقع كتطبيق على الجهاز — يشتغل من أيقونة على الشاشة الرئيسية">📥 تثبيت على الجهاز</button>
     <div class="avatar">👤</div>
   </div>
 </header>
@@ -442,12 +450,45 @@ function doPost(e) {
         layout.push([key, col]);
       });
       var maxCol = s.getLastColumn();
+      function normDate(v) {
+        var st = String(v === undefined || v === null ? "" : v);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(st)) return st;
+        var d = new Date(st);
+        if (!isNaN(d.getTime())) return Utilities.formatDate(d, Session.getScriptTimeZone(), "yyyy-MM-dd");
+        return st;
+      }
+      var sigs = {};
+      if (s.getLastRow() > 1) {
+        var oldVals = s.getRange(2, 1, s.getLastRow() - 1, maxCol).getValues();
+        var keyCols = layout.map(function (p) { return p[1] - 1; });
+        oldVals.forEach(function (row) {
+          var parts = keyCols.map(function (c) {
+            var v = row[c];
+            if (v instanceof Date) v = normDate(v);
+            return String(v === null ? "" : v).trim();
+          });
+          sigs[parts.join("§")] = 1;
+        });
+      }
+      var added = 0, skipped = 0;
       rows.forEach(function (r) {
         var row = [];
         for (var i = 0; i !== maxCol; i++) row.push("");
         layout.forEach(function (p) { row[p[1] - 1] = (r[p[0]] === undefined || r[p[0]] === null) ? "" : r[p[0]]; });
+        var keyCols2 = layout.map(function (p) { return p[1] - 1; });
+        var parts = keyCols2.map(function (c) {
+          var v = row[c];
+          if (v instanceof Date) v = normDate(v);
+          return String(v === null ? "" : v).trim();
+        });
+        var sig = parts.join("§");
+        if (sigs[sig]) { skipped++; return; }
+        sigs[sig] = 1;
         s.appendRow(row);
+        added++;
       });
+      out.added = (out.added || 0) + added;
+      out.skipped = (out.skipped || 0) + skipped;
     }
     if (data.type === "exc") writeRows(CFG.exc, [data]);
     else if (data.type === "emp") writeRows(CFG.emp, [data]);
@@ -800,7 +841,10 @@ function saveExc(e){
     desc:$('#fDesc').value.trim()
   };
   if(editExcId){rec._synced=false;exc=exc.map(r=>r.id===editExcId?rec:r);toast('✔ تم تحديث السجل');}
-  else{rec._synced=false;exc.unshift(rec);toast('✔ تم حفظ الأكسبشن للموظف '+rec.agent);}
+  else{
+    if(isDup('exc',rec)){toast('⚠️ السجل ده مسجل بالفعل — نفس التاريخ والموظف ورقم التواصل والمشكلة. مش هيتكرر.','warn');return;}
+    rec._synced=false;exc.unshift(rec);toast('✔ تم حفظ الأكسبشن للموظف '+rec.agent);
+  }
   editExcId=null;$('#excSubmit').textContent='✔ حفظ الأكسبشن';$('#excCancel').style.display='none';
   saveLS();resetExcForm();renderTables();
   pushRec('exc',rec);
@@ -842,7 +886,10 @@ function saveEmp(e){
     agent:$('#epiAgent').value.trim(),complaint:$('#epiComplaint').value.trim()
   };
   if(editEmpId){rec._synced=false;emp=emp.map(r=>r.id===editEmpId?rec:r);toast('✔ تم تحديث السجل');}
-  else{rec._synced=false;emp.unshift(rec);toast('✔ تم حفظ شكوي العميل '+rec.name);}
+  else{
+    if(isDup('emp',rec)){toast('⚠️ الشكوي دي مسجلة بالفعل — نفس التاريخ والعميل والرقم. مش هيتكرر.','warn');return;}
+    rec._synced=false;emp.unshift(rec);toast('✔ تم حفظ شكوي العميل '+rec.name);
+  }
   editEmpId=null;$('#empSubmit').textContent='✔ حفظ الشكوي';$('#empCancel').style.display='none';
   saveLS();resetEmpForm();refreshDatalists();renderTables();
   pushRec('emp',rec);
@@ -884,7 +931,10 @@ function saveProd(e){
     purchase:$('#pcPurchase').value,desc:$('#pcDesc').value.trim()
   };
   if(editProdId){rec._synced=false;prod=prod.map(r=>r.id===editProdId?rec:r);toast('✔ تم تحديث السجل');}
-  else{rec._synced=false;prod.unshift(rec);toast('✔ تم حفظ مشكلة المنتج');}
+  else{
+    if(isDup('prod',rec)){toast('⚠️ المشكلة دي مسجلة بالفعل — نفس العميل والموبايل والمنتج. مش هيتكرر.','warn');return;}
+    rec._synced=false;prod.unshift(rec);toast('✔ تم حفظ مشكلة المنتج');
+  }
   editProdId=null;$('#prodSubmit').textContent='✔ حفظ المشكلة';$('#prodCancel').style.display='none';
   saveLS();resetProdForm();refreshDatalists();renderTables();
   pushRec('prod',rec);
@@ -1248,10 +1298,21 @@ function hxDate(v){
 ============================================================ */
 loadLS();
 /* جلب السجلات من الشيت تلقائيًا عند فتح الموقع من أي جهاز — عشان السجل يظهر مكان ما تفتح */
+function normDate(v){
+  const s=String(v==null?'':v);
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+  const t=new Date(s);if(!isNaN(t))return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
+  return s;
+}
 function signatureOf(type,r){
-  if(type==='exc')return [r.date,r.agent,r.contact,r.mobileType,r.issue,r.exctype,r.amount,r.desc].join('§');
-  if(type==='emp')return [r.entryDate,r.name,r.phone,r.mobileType,r.branch,r.agent,r.complaint].join('§');
-  return [r.name,r.mobileType,r.mobileNum,r.product,r.purchase,r.desc,r.entryDate].join('§');
+  if(type==='exc')return [normDate(r.date),String(r.agent||'').trim(),String(r.contact||'').trim(),String(r.mobileType||'').trim(),String(r.issue||'').trim(),String(r.exctype||'').trim(),String(+r.amount||0),String(r.desc||'').trim()].join('§');
+  if(type==='emp')return [normDate(r.entryDate),String(r.name||'').trim(),String(r.phone||'').trim(),String(r.mobileType||'').trim(),String(r.branch||'').trim(),String(r.agent||'').trim(),String(r.complaint||'').trim()].join('§');
+  return [normDate(r.entryDate),String(r.name||'').trim(),String(r.mobileType||'').trim(),String(r.mobileNum||'').trim(),String(r.product||'').trim(),normDate(r.purchase),String(r.desc||'').trim()].join('§');
+}
+/* فحص تكرار قبل الحفظ — نفس البصمة بالظبط يعني السجل موجود */
+function isDup(type,rec,excludeId){
+  const sig=signatureOf(type,rec);
+  return {exc:exc,emp:emp,prod:prod}[type].some(r=>r.id!==excludeId&&signatureOf(type,r)===sig);
 }
 function gsPullAll(silent){
   const url=sheetURL();
@@ -1270,9 +1331,9 @@ function gsPullAll(silent){
       const sigE=new Set(exc.map(r=>signatureOf('exc',r)));
       const sigM=new Set(emp.map(r=>signatureOf('emp',r)));
       const sigP=new Set(prod.map(r=>signatureOf('prod',r)));
-      (d.data&&d.data.exc||[]).forEach(r=>{const s=signatureOf('exc',r);if(!sigE.has(s)){sigE.add(s);add.push(['exc',Object.assign({id:genId(),_synced:true},r)]);}});
-      (d.data&&d.data.emp||[]).forEach(r=>{const s=signatureOf('emp',r);if(!sigM.has(s)){sigM.add(s);add.push(['emp',Object.assign({id:genId(),_synced:true},r)]);}});
-      (d.data&&d.data.prod||[]).forEach(r=>{const s=signatureOf('prod',r);if(!sigP.has(s)){sigP.add(s);add.push(['prod',Object.assign({id:genId(),_synced:true},r)]);}});
+      (d.data&&d.data.exc||[]).forEach(r0=>{const r=Object.assign({},r0);r.date=normDate(r.date);const s=signatureOf('exc',r);if(!sigE.has(s)){sigE.add(s);add.push(['exc',Object.assign({id:genId(),_synced:true},r)]);}});
+      (d.data&&d.data.emp||[]).forEach(r0=>{const r=Object.assign({},r0);r.entryDate=normDate(r.entryDate);const s=signatureOf('emp',r);if(!sigM.has(s)){sigM.add(s);add.push(['emp',Object.assign({id:genId(),_synced:true},r)]);}});
+      (d.data&&d.data.prod||[]).forEach(r0=>{const r=Object.assign({},r0);r.entryDate=normDate(r.entryDate);r.purchase=normDate(r.purchase);const s=signatureOf('prod',r);if(!sigP.has(s)){sigP.add(s);add.push(['prod',Object.assign({id:genId(),_synced:true},r)]);}});
       add.forEach(p=>{({exc:exc,emp:emp,prod:prod})[p[0]].push(p[1]);});
       if(add.length){
         exc.sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
@@ -1293,6 +1354,25 @@ try{
   const _q=new URLSearchParams(location.search).get('gs');
   if(_q&&!localStorage.getItem(LS.gs))localStorage.setItem(LS.gs,_q);
 }catch(_){}
+/* ============================================================
+   تثبيت الموقع على الجهاز (PWA)
+============================================================ */
+if('serviceWorker' in navigator&&/^https:/.test(location.protocol)){
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+let _installPrompt=null;
+window.addEventListener('beforeinstallprompt',e=>{
+  e.preventDefault();_installPrompt=e;
+  const b=$('#installBtn');if(b)b.style.display='';
+});
+on('installBtn','click',async()=>{
+  if(!_installPrompt){toast('💡 لو مفيش نافذة تثبيت — استخدم قائمة المتصفح ← "تثبيت التطبيق" أو "إضافة إلى الشاشة الرئيسية"','warn');return;}
+  _installPrompt.prompt();
+  const choice=await _installPrompt.userChoice;
+  if(choice.outcome==='accepted')toast('🎉 التطبيق اتثبّت — هتلاقي أيقونته على الشاشة الرئيسية');
+  _installPrompt=null;$('#installBtn').style.display='none';
+});
+
 (function fillBranches(){
   const s=$('#epiBranch');
   BRANCHES.forEach(b=>{const o=document.createElement('option');o.value=b;o.textContent=b;s.appendChild(o);});
