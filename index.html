@@ -225,6 +225,8 @@
         <div class="field"><label>التاريخ <span class="req">*</span></label><input type="text" id="fDate" class="cal-btn" placeholder="اضغط لاختيار التاريخ 📅" required readonly></div>
         <div class="field"><label>الموظف (Agent) <span class="req">*</span></label><input type="text" id="fAgent" autocomplete="off" placeholder="اضغط لاختيار الموظف أو اكتب الاسم" required></div>
         <div class="field"><label>رقم التواصل <span class="req">*</span></label><input type="tel" id="fContact" placeholder="01xxxxxxxxx" required></div>
+        <div class="field"><label>نوع الموبايل</label><input type="text" id="fMobileType" list="dlExcMobile" autocomplete="off" placeholder="مثال: iPhone 16 Pro Max"></div>
+        <datalist id="dlExcMobile"></datalist>
         <div class="field"><label>المشكلة (Issue) <span class="req">*</span></label>
           <select id="fIssue" required>
             <option value="">— اختار —</option>
@@ -395,10 +397,11 @@ function doPost(e) {
       return ss.getSheetByName(eng) || ss.getSheetByName(arb) || ss.insertSheet(eng);
     }
     var CFG = {
-      exc: { eng: "Excibsons", arb: "الأكسبشن", headers: ["Date","Agent","Contact Number","Issue","Excibsons","Description","Amount Refund"],
+      exc: { eng: "Excibsons", arb: "الأكسبشن", headers: ["Date","Agent","Contact Number","Mobile Type","Issue","Excibsons","Description","Amount Refund"],
         map: [ ["date", ["Date","التاريخ","تاريخ الفتح"]],
                ["agent", ["Agent","الموظف","اسم الموظف"]],
                ["contact", ["Contact Number","رقم التواصل","رقم العميل"]],
+               ["mobileType", ["Mobile Type","نوع الموبايل"]],
                ["issue", ["Issue","المشكلة","نوع المشكلة"]],
                ["exctype", ["Excibsons","Exceptions","الأكسبشن"]],
                ["desc", ["Description","الوصف","تفاصيل"]],
@@ -469,6 +472,7 @@ function doGet(e) {
         map: [ ["date", ["Date","التاريخ","تاريخ الفتح"]],
                ["agent", ["Agent","الموظف","اسم الموظف"]],
                ["contact", ["Contact Number","رقم التواصل","رقم العميل"]],
+               ["mobileType", ["Mobile Type","نوع الموبايل"]],
                ["issue", ["Issue","المشكلة","نوع المشكلة"]],
                ["exctype", ["Excibsons","Exceptions","الأكسبشن"]],
                ["desc", ["Description","الوصف","تفاصيل"]],
@@ -791,7 +795,7 @@ function saveExc(e){
   const rec={
     id:editExcId||genId(),
     date:$('#fDate').value,agent:$('#fAgent').value.trim(),
-    contact:$('#fContact').value.trim(),issue:$('#fIssue').value,
+    contact:$('#fContact').value.trim(),mobileType:$('#fMobileType').value.trim(),issue:$('#fIssue').value,
     exctype:$('#fExc').value,amount:parseFloat($('#fAmount').value)||0,
     desc:$('#fDesc').value.trim()
   };
@@ -804,7 +808,7 @@ function saveExc(e){
 function editExc(id){
   const r=exc.find(x=>x.id===id);if(!r)return;
   editExcId=id;
-  $('#fDate').value=r.date;$('#fAgent').value=r.agent;$('#fContact').value=r.contact;
+  $('#fDate').value=r.date;$('#fAgent').value=r.agent;$('#fContact').value=r.contact;$('#fMobileType').value=r.mobileType||'';
   $('#fIssue').value=r.issue;$('#fExc').value=r.exctype;
   $('#fAmount').value=r.amount||'';$('#fDesc').value=r.desc||'';
   $('#excSubmit').textContent='⟳ تحديث السجل';$('#excCancel').style.display='inline-flex';
@@ -908,6 +912,8 @@ function refreshDatalists(){
   const up=[...new Set(prod.map(r=>r.product).filter(Boolean))].sort();
   $('#dlMobile').innerHTML=um.map(v=>'<option value="'+esc(v)+'">').join('');
   $('#dlEpiMobile').innerHTML=um.map(v=>'<option value="'+esc(v)+'">').join('');
+  const uex=[...new Set([...exc.map(r=>r.mobileType),...prod.map(r=>r.mobileType),...emp.map(r=>r.mobileType)].filter(Boolean))].sort();
+  $('#dlExcMobile').innerHTML=uex.map(v=>'<option value="'+esc(v)+'">').join('');
   $('#dlProduct').innerHTML=up.map(v=>'<option value="'+esc(v)+'">').join('');
 }
 
@@ -919,12 +925,12 @@ function issuePill(v){return '<span class="p p-blue">'+esc(v||'-')+'</span>';}
 function syncDot(rec){return '<span class="dot '+(rec._synced?'on':'off')+'" title="'+(rec._synced?'متزامن مع Google Sheet':'مش متزامن — استخدم "مزامنة الكل"')+'"></span>';}
 function renderTables(){
   const q=($('#excSearch').value||'').toLowerCase();
-  const rowsF=exc.filter(r=>!q||[r.agent,r.contact,r.issue,r.exctype,r.desc].join(' ').toLowerCase().includes(q));
+  const rowsF=exc.filter(r=>!q||[r.agent,r.contact,r.mobileType,r.issue,r.exctype,r.desc].join(' ').toLowerCase().includes(q));
   $('#excCount').textContent='('+exc.length+' سجل)';
-  $('#tbExc').innerHTML='<thead><tr><th>الحفظ</th><th>#</th><th>التاريخ</th><th>الموظف</th><th>رقم التواصل</th><th>المشكلة</th><th>الأكسبشن</th><th>المبلغ</th><th>الوصف</th><th>إجراءات</th></tr></thead><tbody>'+
-    (rowsF.length?rowsF.map((r,i)=>'<tr><td>'+syncDot(r)+'</td><td>'+(i+1)+'</td><td>'+esc(r.date)+'</td><td><b>'+esc(r.agent)+'</b></td><td>'+esc(r.contact)+'</td><td>'+issuePill(r.issue)+'</td><td>'+excPill(r.exctype)+'</td><td>'+(r.amount?money(r.amount)+' ج':'—')+'</td><td class="wrap">'+esc(r.desc||'—')+'</td>'+
+  $('#tbExc').innerHTML='<thead><tr><th>الحفظ</th><th>#</th><th>التاريخ</th><th>الموظف</th><th>رقم التواصل</th><th>نوع الموبايل</th><th>المشكلة</th><th>الأكسبشن</th><th>المبلغ</th><th>الوصف</th><th>إجراءات</th></tr></thead><tbody>'+
+    (rowsF.length?rowsF.map((r,i)=>'<tr><td>'+syncDot(r)+'</td><td>'+(i+1)+'</td><td>'+esc(r.date)+'</td><td><b>'+esc(r.agent)+'</b></td><td>'+esc(r.contact)+'</td><td>'+esc(r.mobileType||'—')+'</td><td>'+issuePill(r.issue)+'</td><td>'+excPill(r.exctype)+'</td><td>'+(r.amount?money(r.amount)+' ج':'—')+'</td><td class="wrap">'+esc(r.desc||'—')+'</td>'+
       '<td><button class="btn small" onclick="editExc(\''+r.id+'\')">✎</button> <button class="btn small danger" onclick="delExc(\''+r.id+'\')">🗑</button></td></tr>').join('')
-    :'<tr><td colspan="10" style="text-align:center;color:var(--ink2);padding:26px">مفيش سجلات لسه — ابدأ بإدخال أول أكسبشن ✍️</td></tr>')+'</tbody>';
+    :'<tr><td colspan="11" style="text-align:center;color:var(--ink2);padding:26px">مفيش سجلات لسه — ابدأ بإدخال أول أكسبشن ✍️</td></tr>')+'</tbody>';
 
   const q2=($('#empSearch').value||'').toLowerCase();
   const rowsE=emp.filter(r=>!q2||[r.name,r.phone,r.mobileType,r.branch,r.agent,r.complaint].join(' ').toLowerCase().includes(q2));
@@ -1011,7 +1017,7 @@ function esc(v){return String(v==null?'':v).replace(/[<>&"]/g,c=>({'<':'&lt;','>
 function openKpi(kind,extra){
   const [E,M,P]=filteredData();
   let title='',rows=[],headers=[];
-  if(kind==='exc'){title='🎫 كل الأكسبشن';headers=['التاريخ','الموظف','رقم التواصل','المشكلة','النوع','المبلغ','الوصف'];rows=E.map(r=>[r.date,r.agent,esc(r.contact),r.issue,r.exctype,money(+r.amount||0),esc(r.desc)]);}
+  if(kind==='exc'){title='🎫 كل الأكسبشن';headers=['التاريخ','الموظف','رقم التواصل','نوع الموبايل','المشكلة','النوع','المبلغ','الوصف'];rows=E.map(r=>[r.date,r.agent,esc(r.contact),esc(r.mobileType||'—'),r.issue,r.exctype,money(+r.amount||0),esc(r.desc)]);}
   if(kind==='refund'){const R=E.filter(r=>+r.amount>0);title='💸 سجلات فيها مبالغ استرداد';headers=['التاريخ','الموظف','المشكلة','النوع','المبلغ','الوصف'];rows=R.map(r=>[r.date,r.agent,r.issue,r.exctype,money(+r.amount||0),esc(r.desc)]);}
   if(kind==='emp'){title='👥 شكاوي الموظفين';headers=['التاريخ','العميل','رقم العميل','نوع الموبايل','الفرع','الموظف','الشكوي'];rows=M.map(r=>[r.entryDate,esc(r.name),esc(r.phone),r.mobileType,r.branch,esc(r.agent),esc(r.complaint)]);}
   if(kind==='prod'){title='📱 مشاكل المنتجات';headers=['العميل','نوع الموبايل','رقم الموبايل','المنتج','تاريخ الشراء','المشكلة'];rows=P.map(r=>[esc(r.name),r.mobileType,esc(r.mobileNum),r.product,r.purchase,esc(r.desc)]);}
@@ -1046,7 +1052,7 @@ function pushRec(type,rec){
     return;
   }
   const payload={};
-  if(type==='exc')Object.assign(payload,{type:'exc',date:rec.date,agent:rec.agent,contact:rec.contact,issue:rec.issue,exctype:rec.exctype,desc:rec.desc,amount:rec.amount});
+  if(type==='exc')Object.assign(payload,{type:'exc',date:rec.date,agent:rec.agent,contact:rec.contact,mobileType:rec.mobileType||'',issue:rec.issue,exctype:rec.exctype,desc:rec.desc,amount:rec.amount});
   if(type==='emp')Object.assign(payload,{type:'emp',entryDate:rec.entryDate,name:rec.name,phone:rec.phone,mobileType:rec.mobileType,branch:rec.branch,agent:rec.agent,complaint:rec.complaint});
   if(type==='prod')Object.assign(payload,{type:'prod',name:rec.name,mobileType:rec.mobileType,mobileNum:rec.mobileNum,product:rec.product,purchase:rec.purchase,desc:rec.desc,entryDate:rec.entryDate});
   fetch(url,{method:'POST',body:JSON.stringify(payload)})
@@ -1153,7 +1159,7 @@ on('gsCopy','click',()=>{
 on('exportBtn','click',()=>{
   try{
     const wb=XLSX.utils.book_new();
-    const s1=exc.map(r=>({'Date':r.date,'Agent':r.agent,'Contact Number':r.contact,'Issue':r.issue,'Excibsons':r.exctype,'Description':r.desc||'','Amount Refund':r.amount||''}));
+    const s1=exc.map(r=>({'Date':r.date,'Agent':r.agent,'Contact Number':r.contact,'Mobile Type':r.mobileType||'','Issue':r.issue,'Excibsons':r.exctype,'Description':r.desc||'','Amount Refund':r.amount||''}));
     const s2=emp.map(r=>({'Date':r.entryDate,'Customer':r.name,'Customer Number':r.phone,'Mobile Type':r.mobileType,'Branch':r.branch,'Employee Name':r.agent,'Complaint':r.complaint||''}));
     const s3=prod.map(r=>({'Customer':r.name,'Mobile Type':r.mobileType,'Mobile Number':r.mobileNum,'Product':r.product,'Purchase Date':r.purchase,'Problem':r.desc||'','Recorded On':r.entryDate}));
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(s1),'Excibsons');
@@ -1204,13 +1210,15 @@ on('importFile','change',async e=>{
         });
       }else{
         const hD=pk(['date'],['التاريخ']),hA=pk(['agent'],['موظف','الموظف']),
-             hC=pk(['contact'],['تواصل','موبايل']),hI=pk(['issue'],['مشكلة']),
+             hC=pk(['contact'],['تواصل','موبايل']),hMT=pk(['mobile type','mobile'],['نوع الموبايل','نوع']),
+             hI=pk(['issue'],['مشكلة']),
              hE=pk(['excibson','exception'],['اكسبشن','أكسبشن']),hDe=pk(['desc','descript'],['وصف','الوصف']),
              hR=pk(['amount','refund'],['مبلغ','استرداد']);
         rows.forEach(r=>{
           if(!r[hA])return;
           exc.unshift({_synced:true,id:genId(),date:hxDate(hD?r[hD]:''),
             agent:String(r[hA]||'').trim(),contact:String(r[hC]||'').trim(),
+            mobileType:hMT?String(r[hMT]||'').trim():'',
             issue:hI?String(r[hI]||'').trim():'Others',
             exctype:hE?String(r[hE]||'').trim():'Others',
             amount:parseFloat(String(hR?r[hR]||'0':'0').replace(/[^\d.]/g,''))||0,
@@ -1241,7 +1249,7 @@ function hxDate(v){
 loadLS();
 /* جلب السجلات من الشيت تلقائيًا عند فتح الموقع من أي جهاز — عشان السجل يظهر مكان ما تفتح */
 function signatureOf(type,r){
-  if(type==='exc')return [r.date,r.agent,r.contact,r.issue,r.exctype,r.amount,r.desc].join('§');
+  if(type==='exc')return [r.date,r.agent,r.contact,r.mobileType,r.issue,r.exctype,r.amount,r.desc].join('§');
   if(type==='emp')return [r.entryDate,r.name,r.phone,r.mobileType,r.branch,r.agent,r.complaint].join('§');
   return [r.name,r.mobileType,r.mobileNum,r.product,r.purchase,r.desc,r.entryDate].join('§');
 }
