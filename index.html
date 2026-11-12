@@ -1042,7 +1042,7 @@ const valueLabels={id:'valueLabels',afterDatasetsDraw(c){
 
 /* قائمة الشهور اللي فيها بيانات — فوق رسم المؤشرات */
 function fillMonthSelect(E,M,P){
-  const months=[...new Set([...E.map(r=>String(r.date||'').slice(0,7)),...M.map(r=>String(r.entryDate||'').slice(0,7)),...P.map(r=>String(r.purchase||'').slice(0,7))].filter(k=>/^\d{4}-\d{2}$/.test(k)))].sort().reverse();
+  const months=[...new Set([...E.map(r=>String(r.date||'').slice(0,7)),...M.map(r=>String(r.entryDate||'').slice(0,7)),...P.map(r=>String(r.entryDate||r.purchase||'').slice(0,7))].filter(k=>/^\d{4}-\d{2}$/.test(k)))].sort().reverse();
   const cur=todayISO().slice(0,7);
   if(!months.includes(cur))months.unshift(cur);
   const sel=$('#chMonth');
@@ -1055,7 +1055,7 @@ on('chMonth','change',renderAnalysis);
 function filteredData(){
   const from=$('#aFrom').value,to=$('#aTo').value;
   const inR=d=>(!from||d>=from)&&(!to||d<=to);
-  return [exc.filter(r=>inR(r.date)),emp.filter(r=>inR(r.entryDate)),prod.filter(r=>inR(r.purchase))];
+  return [exc.filter(r=>inR(r.date)),emp.filter(r=>inR(r.entryDate)),prod.filter(r=>inR(r.entryDate||r.purchase))];
 }
 function renderAnalysis(){
   const [E,M,P]=filteredData();
@@ -1067,7 +1067,9 @@ function renderAnalysis(){
   $('#kTopIssue').textContent=topIssue?topIssue[0]:'—';
 
   /* المؤشرات شهريًا: رسم يومي لكل أيام الشهر المختار مع قيمة فوق كل نقطة */
-  fillMonthSelect(E,M,P);
+  /* المؤشرات شهريًا: مشاكل المنتجات تُحسب من تاريخ التسجيل (مش تاريخ الشراء) */
+  const P2=P.map(r=>Object.assign({},r,{entryDate:r.entryDate||r.purchase}));
+  fillMonthSelect(E,M,P2);
   const mk=$('#chMonth').value||todayISO().slice(0,7);
   const [my,mm]=mk.split('-');
   const dim=new Date(+my,+mm,0).getDate();
@@ -1077,7 +1079,7 @@ function renderAnalysis(){
   draw('chAllMonthly',{type:'line',data:{labels:days.map(d=>d+' '+mShort),datasets:[
     {label:'أكسبشن',data:dayCnt(E,'date'),borderColor:'#2fbf71',tension:.35,borderWidth:3,pointRadius:3.5,fill:true,backgroundColor:'rgba(47,191,113,.10)',cubicInterpolationMode:'monotone'},
     {label:'شكاوي موظفين',data:dayCnt(M,'entryDate'),borderColor:'#ef4444',tension:.35,borderWidth:3,pointRadius:3.5,fill:true,backgroundColor:'rgba(239,68,68,.08)',cubicInterpolationMode:'monotone'},
-    {label:'مشاكل منتجات',data:dayCnt(P,'purchase'),borderColor:'#0ea5b7',tension:.35,borderWidth:3,pointRadius:3.5,fill:true,backgroundColor:'rgba(14,165,183,.09)',cubicInterpolationMode:'monotone'}
+    {label:'مشاكل منتجات',data:dayCnt(P2,'entryDate'),borderColor:'#0ea5b7',tension:.35,borderWidth:3,pointRadius:3.5,fill:true,backgroundColor:'rgba(14,165,183,.09)',cubicInterpolationMode:'monotone'}
   ]},options:monthlyOpts(),plugins:[valueLabels]});
 
   const ty=countBy(E,r=>r.exctype);
