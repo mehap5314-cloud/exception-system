@@ -202,13 +202,13 @@
     <div class="logo">⇪</div>
     <div>
       <h1>نظام إدخال البيانات</h1>
-      <p>الأكسبشن · مشاكل الموظفين · مشاكل المنتجات · سجلات وتحليل</p>
     </div>
   </div>
   <nav class="tabs">
     <button class="tab active" data-tab="exc">📝 إدخال أكسبشن</button>
     <button class="tab" data-tab="emp">🧑‍🔧 مشاكل الموظفين</button>
     <button class="tab" data-tab="prod">📱 مشاكل منتجات الشركة</button>
+    <button class="tab" data-tab="tech">🔧 Technical Issue</button>
     <button class="tab" data-tab="records">🗂 السجلات</button>
     <button class="tab" data-tab="analysis">📊 تحليل البيانات</button>
   </nav>
@@ -289,6 +289,29 @@
     </div>
   </section>
 
+  <!-- ================= Technical Issue ================= -->
+  <section id="tab-tech" class="tab-page">
+    <div class="card" style="max-width:980px">
+      <h3>🔧 تسجيل Technical Issue</h3>
+      <form id="techForm" class="form-grid" novalidate>
+        <div class="field"><label>اسم العميل <span class="req">*</span></label><input type="text" id="tiName" placeholder="مثال: Ahmed Gamal" required></div>
+        <div class="field"><label>رقم العميل <span class="req">*</span></label><input type="tel" id="tiPhone" placeholder="01xxxxxxxxx" required></div>
+        <div class="field"><label>نوع الموبايل <span class="req">*</span></label><input type="text" id="tiMobileType" list="dlTiMobile" placeholder="مثال: iPhone 16 Pro Max" required>
+          <datalist id="dlTiMobile"></datalist>
+        </div>
+        <div class="field"><label>الفرع <span class="req">*</span></label><select id="tiBranch" required><option value="">— اختر الفرع —</option></select></div>
+        <div class="field"><label>اسم الموظف <span class="req">*</span></label><input type="text" id="tiAgent" autocomplete="off" placeholder="اضغط لاختيار الموظف أو اكتب الاسم" required></div>
+        <div class="field"><label>تاريخ الشكوي</label><input type="text" id="tiEntryDate" readonly></div>
+        <div class="field full"><label>الشكوي <span class="req">*</span></label><textarea id="tiComplaint" placeholder="اكتب المشكلة التقنية اللي اشتكى منها العميل..." required></textarea></div>
+        <div class="form-actions">
+          <button type="submit" class="btn success" id="techSubmit">✔ حفظ الشكوي</button>
+          <button type="button" class="btn danger" id="techCancel" style="display:none">✕ إلغاء التعديل</button>
+          <button type="button" class="btn" id="techReset">تفرّغ النموذج</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
   <!-- ================= مشاكل منتجات الشركة ================= -->
   <section id="tab-prod" class="tab-page">
     <div class="card" style="max-width:880px">
@@ -336,6 +359,13 @@
         <input class="search" id="prodSearch" placeholder="🔎 بحث بالعميل / الموبايل / المنتج...">
       </div>
       <div class="table-wrap"><table id="tbProd"></table></div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <h3>🗂 سجل Technical Issue <span class="count" id="techCount"></span></h3>
+      <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+        <input class="search" id="techSearch" placeholder="🔎 بحث بالعميل / الموظف / الفرع / الشكوي...">
+      </div>
+      <div class="table-wrap"><table id="tbTech"></table></div>
     </div>
   </section>
 
@@ -429,7 +459,15 @@ function doPost(e) {
                ["product", ["Product","المنتج"]],
                ["purchase", ["Purchase Date","تاريخ الشراء"]],
                ["desc", ["Problem","الوصف","المشكلة"]],
-               ["entryDate", ["Recorded On","تاريخ التسجيل"]] ] }
+               ["entryDate", ["Recorded On","تاريخ التسجيل"]] ] },
+      tech: { eng: "Technical Issue", arb: "Technical Issue", headers: ["Date","Customer","Customer Number","Branch","Employee Name","Mobile Type","Complaint"],
+        map: [ ["entryDate", ["Date","التاريخ","تاريخ الشكوي"]],
+               ["name", ["Customer","اسم العميل","العميل"]],
+               ["phone", ["Customer Number","رقم العميل"]],
+               ["branch", ["Branch","الفرع"]],
+               ["agent", ["Employee Name","اسم الموظف","الموظف"]],
+               ["mobileType", ["Mobile Type","نوع الموبايل"]],
+               ["complaint", ["Complaint","الشكوي","الشكوى","وصف الشكوي"]] ] }
     };
     function writeRows(cfg, rows) {
       if (!rows || !rows.length) return;
@@ -493,10 +531,12 @@ function doPost(e) {
     if (data.type === "exc") writeRows(CFG.exc, [data]);
     else if (data.type === "emp") writeRows(CFG.emp, [data]);
     else if (data.type === "prod") writeRows(CFG.prod, [data]);
+    else if (data.type === "tech") writeRows(CFG.tech, [data]);
     else if (data.type === "syncAll") {
       writeRows(CFG.exc, data.exc);
       writeRows(CFG.emp, data.emp);
       writeRows(CFG.prod, data.prod);
+      writeRows(CFG.tech, data.tech);
     }
     out.ok = true;
   } catch (err) { out.err = String(err); }
@@ -533,7 +573,15 @@ function doGet(e) {
                ["product", ["Product","المنتج"]],
                ["purchase", ["Purchase Date","تاريخ الشراء"]],
                ["desc", ["Problem","الوصف","المشكلة"]],
-               ["entryDate", ["Recorded On","تاريخ التسجيل"]] ] }
+               ["entryDate", ["Recorded On","تاريخ التسجيل"]] ] },
+      tech: { eng: "Technical Issue", arb: "Technical Issue",
+        map: [ ["entryDate", ["Date","التاريخ","تاريخ الشكوي"]],
+               ["name", ["Customer","اسم العميل","العميل"]],
+               ["phone", ["Customer Number","رقم العميل"]],
+               ["branch", ["Branch","الفرع"]],
+               ["agent", ["Employee Name","اسم الموظف","الموظف"]],
+               ["mobileType", ["Mobile Type","نوع الموبايل"]],
+               ["complaint", ["Complaint","الشكوي","الشكوى","وصف الشكوي"]] ] }
     };
     function readRows(cfg) {
       var s = ss.getSheetByName(cfg.eng) || ss.getSheetByName(cfg.arb);
@@ -561,6 +609,7 @@ function doGet(e) {
     out.data.exc = readRows(CFG.exc);
     out.data.emp = readRows(CFG.emp);
     out.data.prod = readRows(CFG.prod);
+    out.data.tech = readRows(CFG.tech);
     out.ok = true;
   } catch (err) { out.err = String(err); }
   return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
@@ -593,9 +642,9 @@ const EXC_TYPES=[
 ];
 const PAL=["#0ea5a0","#2fbf71","#f59e0b","#ef4444","#8b5cf6","#0ea5b7","#ec4899","#84cc16","#f97316","#14b8a6","#eab308","#5b8cff"];
 
-const LS={exc:'ds_excibsons',emp:'ds_empdata',prod:'ds_proddata',agents:'ds_agents',gs:'ds_ggs_url'};
-let exc=[], emp=[], prod=[], ags=[];
-let editExcId=null, editEmpId=null, editProdId=null;
+const LS={exc:'ds_excibsons',emp:'ds_empdata',prod:'ds_proddata',tech:'ds_techdata',agents:'ds_agents',gs:'ds_ggs_url'};
+let exc=[], emp=[], prod=[], tech=[], ags=[];
+let editExcId=null, editEmpId=null, editProdId=null, editTechId=null;
 const charts={};
 
 const $=s=>document.querySelector(s);
@@ -613,6 +662,7 @@ function saveLS(){
     localStorage.setItem(LS.exc,JSON.stringify(exc));
     localStorage.setItem(LS.emp,JSON.stringify(emp));
     localStorage.setItem(LS.prod,JSON.stringify(prod));
+    localStorage.setItem(LS.tech,JSON.stringify(tech));
     localStorage.setItem(LS.agents,JSON.stringify(ags));
   }catch(e){toast('⚠️ مفيش مساحة تخزين — صدّر البيانات لملف Excel','warn');}
 }
@@ -621,10 +671,11 @@ function loadLS(){
     exc=JSON.parse(localStorage.getItem(LS.exc)||'null')||[];
     emp=JSON.parse(localStorage.getItem(LS.emp)||'null')||[];
     prod=JSON.parse(localStorage.getItem(LS.prod)||'null')||[];
+    tech=JSON.parse(localStorage.getItem(LS.tech)||'null')||[];
     ags=JSON.parse(localStorage.getItem(LS.agents)||'null');
     if(!ags)ags=[...DEFAULT_EXC_AGENTS];
     if(!ags.length)ags=[...DEFAULT_EXC_AGENTS];
-  }catch(e){exc=[];emp=[];prod=[];ags=[...DEFAULT_EXC_AGENTS];}
+  }catch(e){exc=[];emp=[];prod=[];tech=[];ags=[...DEFAULT_EXC_AGENTS];}
 }
 function allAgentNames(){
   return [...new Set([...ags,...exc.map(r=>r.agent),...emp.map(r=>r.agent)].filter(x=>x&&String(x).trim()))];
@@ -795,6 +846,7 @@ function renderCombo(){
 }
 attachCombo('#fAgent',allAgentNames);
 attachCombo('#epiAgent',allAgentNames);
+attachCombo('#tiAgent',allAgentNames);
 
 /* ============================================================
    التبويبات
@@ -912,6 +964,52 @@ on('empReset','click',resetEmpForm);
 on('empCancel','click',()=>{resetEmpForm();toast('الغيت التعديل');});
 
 /* ============================================================
+   Technical Issue
+============================================================ */
+['tiName','tiPhone','tiMobileType','tiBranch','tiAgent','tiComplaint'].forEach(id=>on(id,'input',()=>markInvalid($('#'+id),false)));
+['tiName','tiPhone','tiMobileType','tiBranch','tiAgent','tiComplaint'].forEach(id=>on(id,'change',()=>markInvalid($('#'+id),false)));
+function resetTechForm(){
+  $('#techForm').reset();
+  $('#tiEntryDate').value=todayISO();
+  editTechId=null;$('#techSubmit').textContent='✔ حفظ الشكوي';$('#techCancel').style.display='none';
+}
+function saveTech(e){
+  e.preventDefault();
+  if(!validateInputs(['tiName','tiPhone','tiMobileType','tiBranch','tiAgent','tiComplaint']))return;
+  const rec={
+    id:editTechId||genId(),
+    entryDate:$('#tiEntryDate').value||todayISO(),
+    name:$('#tiName').value.trim(),phone:$('#tiPhone').value.trim(),
+    mobileType:$('#tiMobileType').value.trim(),branch:$('#tiBranch').value,
+    agent:$('#tiAgent').value.trim(),complaint:$('#tiComplaint').value.trim()
+  };
+  if(editTechId){rec._synced=false;tech=tech.map(r=>r.id===editTechId?rec:r);toast('✔ تم تحديث السجل');}
+  else{
+    if(isDup('tech',rec)){toast('⚠️ الشكوي دي مسجلة بالفعل — نفس التاريخ والعميل والرقم. مش هيتكرر.','warn');return;}
+    rec._synced=false;tech.unshift(rec);toast('✔ تم حفظ Technical Issue للعميل '+rec.name);
+  }
+  editTechId=null;$('#techSubmit').textContent='✔ حفظ الشكوي';$('#techCancel').style.display='none';
+  saveLS();resetTechForm();refreshDatalists();renderTables();
+  pushRec('tech',rec);
+}
+function editTech(id){
+  const r=tech.find(x=>x.id===id);if(!r)return;
+  editTechId=id;
+  $('#tiName').value=r.name;$('#tiPhone').value=r.phone;$('#tiMobileType').value=r.mobileType;
+  $('#tiBranch').value=r.branch;$('#tiAgent').value=r.agent;$('#tiComplaint').value=r.complaint||'';
+  $('#tiEntryDate').value=r.entryDate||todayISO();
+  $('#techSubmit').textContent='⟳ تحديث السجل';$('#techCancel').style.display='inline-flex';
+  activateTab('tech');
+}
+function delTech(id){
+  if(!confirm('متأكد من حذف السجل؟\n(الحذف مش هيتسحب من Google Sheet — امسحه من الشيت بنفسك)'))return;
+  tech=tech.filter(r=>r.id!==id);saveLS();renderTables();toast('🗑 تم الحذف');
+}
+on('techForm','submit',saveTech);
+on('techReset','click',resetTechForm);
+on('techCancel','click',()=>{resetTechForm();toast('الغيت التعديل');});
+
+/* ============================================================
    مشاكل المنتجات
 ============================================================ */
 ['pcName','pcMobileType','pcMobileNum','pcProduct','pcPurchase'].forEach(id=>on(id,'input',()=>markInvalid($('#'+id),false)));
@@ -958,12 +1056,13 @@ on('prodReset','click',resetProdForm);
 on('prodCancel','click',()=>{resetProdForm();toast('الغيت التعديل');});
 
 function refreshDatalists(){
-  const um=[...new Set([...prod.map(r=>r.mobileType),...emp.map(r=>r.mobileType)].filter(Boolean))].sort();
+  const um=[...new Set([...prod.map(r=>r.mobileType),...emp.map(r=>r.mobileType),...tech.map(r=>r.mobileType)].filter(Boolean))].sort();
   const up=[...new Set(prod.map(r=>r.product).filter(Boolean))].sort();
   $('#dlMobile').innerHTML=um.map(v=>'<option value="'+esc(v)+'">').join('');
   $('#dlEpiMobile').innerHTML=um.map(v=>'<option value="'+esc(v)+'">').join('');
-  const uex=[...new Set([...exc.map(r=>r.mobileType),...prod.map(r=>r.mobileType),...emp.map(r=>r.mobileType)].filter(Boolean))].sort();
+  const uex=[...new Set([...exc.map(r=>r.mobileType),...prod.map(r=>r.mobileType),...emp.map(r=>r.mobileType),...tech.map(r=>r.mobileType)].filter(Boolean))].sort();
   $('#dlExcMobile').innerHTML=uex.map(v=>'<option value="'+esc(v)+'">').join('');
+  $('#dlTiMobile').innerHTML=um.map(v=>'<option value="'+esc(v)+'">').join('');
   $('#dlProduct').innerHTML=up.map(v=>'<option value="'+esc(v)+'">').join('');
 }
 
@@ -997,10 +1096,19 @@ function renderTables(){
     (rowsP.length?rowsP.map((r,i)=>'<tr><td>'+syncDot(r)+'</td><td>'+(i+1)+'</td><td><b>'+esc(r.name)+'</b></td><td>'+esc(r.mobileType)+'</td><td>'+esc(r.mobileNum)+'</td><td class="wrap">'+esc(r.product)+'</td><td>'+esc(r.purchase)+'</td><td class="wrap">'+esc(r.desc||'—')+'</td>'+
       '<td><button class="btn small" onclick="editProd(\''+r.id+'\')">✎</button> <button class="btn small danger" onclick="delProd(\''+r.id+'\')">🗑</button></td></tr>').join('')
     :'<tr><td colspan="9" style="text-align:center;color:var(--ink2);padding:26px">مفيش سجلات لسه — ابدأ بتسجيل أول مشكلة ✍️</td></tr>')+'</tbody>';
+
+  const q4=($('#techSearch').value||'').toLowerCase();
+  const rowsT=tech.filter(r=>!q4||[r.name,r.phone,r.mobileType,r.branch,r.agent,r.complaint].join(' ').toLowerCase().includes(q4));
+  $('#techCount').textContent='('+tech.length+' سجل)';
+  $('#tbTech').innerHTML='<thead><tr><th>الحفظ</th><th>#</th><th>التاريخ</th><th>اسم العميل</th><th>رقم العميل</th><th>نوع الموبايل</th><th>الفرع</th><th>اسم الموظف</th><th>الشكوي</th><th>إجراءات</th></tr></thead><tbody>'+
+    (rowsT.length?rowsT.map((r,i)=>'<tr><td>'+syncDot(r)+'</td><td>'+(i+1)+'</td><td>'+esc(r.entryDate)+'</td><td><b>'+esc(r.name)+'</b></td><td>'+esc(r.phone)+'</td><td>'+esc(r.mobileType)+'</td><td>'+esc(r.branch)+'</td><td>'+esc(r.agent)+'</td><td class="wrap">'+esc(r.complaint||'—')+'</td>'+
+      '<td><button class="btn small" onclick="editTech(\''+r.id+'\')">✎</button> <button class="btn small danger" onclick="delTech(\''+r.id+'\')">🗑</button></td></tr>').join('')
+    :'<tr><td colspan="10" style="text-align:center;color:var(--ink2);padding:26px">مفيش سجلات لسه — ابدأ بتسجيل أول Technical Issue ✍️</td></tr>')+'</tbody>';
 }
 on('excSearch','input',renderTables);
 on('empSearch','input',renderTables);
 on('prodSearch','input',renderTables);
+on('techSearch','input',renderTables);
 
 /* ============================================================
    تحليل البيانات
@@ -1149,6 +1257,7 @@ function pushRec(type,rec){
   if(type==='exc')Object.assign(payload,{type:'exc',date:rec.date,agent:rec.agent,contact:rec.contact,mobileType:rec.mobileType||'',issue:rec.issue,exctype:rec.exctype,desc:rec.desc,amount:rec.amount});
   if(type==='emp')Object.assign(payload,{type:'emp',entryDate:rec.entryDate,name:rec.name,phone:rec.phone,mobileType:rec.mobileType,branch:rec.branch,agent:rec.agent,complaint:rec.complaint});
   if(type==='prod')Object.assign(payload,{type:'prod',name:rec.name,mobileType:rec.mobileType,mobileNum:rec.mobileNum,product:rec.product,purchase:rec.purchase,desc:rec.desc,entryDate:rec.entryDate});
+  if(type==='tech')Object.assign(payload,{type:'tech',entryDate:rec.entryDate,name:rec.name,phone:rec.phone,mobileType:rec.mobileType,branch:rec.branch,agent:rec.agent,complaint:rec.complaint});
   fetch(url,{method:'POST',body:JSON.stringify(payload)})
     .then(r=>r.text().then(txt=>({status:r.status,txt})))
     .then(({status,txt})=>{
@@ -1162,16 +1271,16 @@ function pushRec(type,rec){
 }
 function syncAll(){
   const url=sheetURL();
-  if(!url){toast('⚠️ اربط Google Sheet الأول','warn');return;}  const pendE=exc.filter(r=>!r._synced),pendM=emp.filter(r=>!r._synced),pendP=prod.filter(r=>!r._synced);
-  const total=pendE.length+pendM.length+pendP.length;
+  if(!url){toast('⚠️ اربط Google Sheet الأول','warn');return;}  const pendE=exc.filter(r=>!r._synced),pendM=emp.filter(r=>!r._synced),pendP=prod.filter(r=>!r._synced),pendT=tech.filter(r=>!r._synced);
+  const total=pendE.length+pendM.length+pendP.length+pendT.length;
   if(!total){toast('✔ كله متزامن بالفعل');return;}
   toast('⟳ جاري مزامنة '+total+' سجل...');
-  fetch(url,{method:'POST',body:JSON.stringify({type:'syncAll',exc:pendE,emp:pendM,prod:pendP})})
+  fetch(url,{method:'POST',body:JSON.stringify({type:'syncAll',exc:pendE,emp:pendM,prod:pendP,tech:pendT})})
     .then(r=>r.text().then(txt=>({status:r.status,txt})))
     .then(({status,txt})=>{
       let data=null;try{data=JSON.parse(txt);}catch(_){}
       if(data&&data.ok){
-        [...pendE,...pendM,...pendP].forEach(r2=>r2._synced=true);
+        [...pendE,...pendM,...pendP,...pendT].forEach(r2=>r2._synced=true);
         saveLS();renderTables();
         toast('✔ تم مزامنة '+total+' سجل في الشيت');
         updateGsUI();
@@ -1185,7 +1294,7 @@ function syncAll(){
 function updateGsUI(){
   const url=sheetURL();
   $('#gsUrl').value=url;
-  const pendN=exc.filter(r=>!r._synced).length+emp.filter(r=>!r._synced).length+prod.filter(r=>!r._synced).length;
+  const pendN=exc.filter(r=>!r._synced).length+emp.filter(r=>!r._synced).length+prod.filter(r=>!r._synced).length+tech.filter(r=>!r._synced).length;
   const pb=$('#gsPend');
   if(pb){
     if(url&&pendN>0){pb.textContent='⏳ '+pendN+' متزامنة';pb.style.display='inline-block';}
@@ -1256,9 +1365,11 @@ on('exportBtn','click',()=>{
     const s1=exc.map(r=>({'Date':r.date,'Agent':r.agent,'Contact Number':r.contact,'Mobile Type':r.mobileType||'','Issue':r.issue,'Excibsons':r.exctype,'Description':r.desc||'','Amount Refund':r.amount||''}));
     const s2=emp.map(r=>({'Date':r.entryDate,'Customer':r.name,'Customer Number':r.phone,'Mobile Type':r.mobileType,'Branch':r.branch,'Employee Name':r.agent,'Complaint':r.complaint||''}));
     const s3=prod.map(r=>({'Customer':r.name,'Mobile Type':r.mobileType,'Mobile Number':r.mobileNum,'Product':r.product,'Purchase Date':r.purchase,'Problem':r.desc||'','Recorded On':r.entryDate}));
+    const s4=tech.map(r=>({'Date':r.entryDate,'Customer':r.name,'Customer Number':r.phone,'Branch':r.branch,'Employee Name':r.agent,'Mobile Type':r.mobileType,'Complaint':r.complaint||''}));
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(s1),'Excibsons');
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(s2),'Employee Issues');
     XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(s3),'Product Issues');
+    XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(s4),'Technical Issues');
     XLSX.writeFile(wb,'Company_Data_'+todayISO()+'.xlsx');
     toast('✔ تم تصدير ملف Excel');
   }catch(e){console.error(e);toast('⚠️ حصل خطأ في التصدير','warn');}
@@ -1268,7 +1379,7 @@ on('importFile','change',async e=>{
   const f=e.target.files[0];if(!f)return;
   try{
     const wb=XLSX.read(await f.arrayBuffer(),{type:'array',cellDates:true});
-    let nE=0,nM=0,nP=0;
+    let nE=0,nM=0,nP=0,nT=0;
     wb.SheetNames.forEach(nm=>{
       const rows=XLSX.utils.sheet_to_json(wb.Sheets[nm],{defval:''});
       if(!rows.length)return;
@@ -1276,7 +1387,21 @@ on('importFile','change',async e=>{
       const pk=(keys,ar)=>{for(const k of keys){const h=H.find(x=>String(x).toLowerCase().includes(k.toLowerCase()));if(h!=null)return h;}if(ar)for(const k of ar){const h=H.find(x=>String(x).includes(k));if(h!=null)return h;}return null;};
       const isEmp=nm.toLowerCase().includes('employee')||/موظف|شكوي/.test(nm);
       const isProd=nm.toLowerCase().includes('product')||/منتج/.test(nm);
-      if(isEmp){
+      const isTech=nm.toLowerCase().includes('technical')||/تقني/.test(nm);
+      if(isTech){
+        const hN=pk(['customer'],['العميل']),hP=pk(['phone','number'],['رقم العميل','رقم']),
+             hM=pk(['mobile type','mobile'],['نوع الموبايل','نوع']),hB=pk(['branch'],['الفرع','فرع']),
+             hA=pk(['employee','agent'],['اسم الموظف','الموظف']),hC=pk(['complaint','problem','desc'],['الشكوي','شكوي','وصف']),
+             hD=pk(['date'],['التاريخ']);
+        rows.forEach(r=>{
+          if(!r[hN]&&!r[hA])return;
+          tech.unshift({_synced:true,id:genId(),entryDate:hxDate(hD?r[hD]:'')||todayISO(),
+            name:String(r[hN]||'').trim(),phone:hP?String(r[hP]||'').trim():'',
+            mobileType:hM?String(r[hM]||'').trim():'',branch:hB?String(r[hB]||'').trim():'غير محدد',
+            agent:hA?String(r[hA]||'').trim():'',complaint:hC?String(r[hC]||'').trim():''});
+          nT++;
+        });
+      }else if(isEmp){
         const hN=pk(['customer'],['العميل']),hP=pk(['phone','number'],['رقم العميل','رقم']),
              hM=pk(['mobile type','mobile'],['نوع الموبايل','نوع']),hB=pk(['branch'],['الفرع','فرع']),
              hA=pk(['employee','agent'],['اسم الموظف','الموظف']),hC=pk(['complaint','problem','desc'],['الشكوي','شكوي','وصف']),
@@ -1321,9 +1446,9 @@ on('importFile','change',async e=>{
         });
       }
     });
-    if(!nE&&!nM&&!nP){toast('⚠️ مفيش صفوف معروفة في الملف','warn');return;}
+    if(!nE&&!nM&&!nP&&!nT){toast('⚠️ مفيش صفوف معروفة في الملف','warn');return;}
     saveLS();refreshDatalists();renderTables();
-    toast('✔ تم الاستيراد: '+nE+' أكسبشن · '+nM+' شكوي موظف · '+nP+' مشكلة منتج');
+    toast('✔ تم الاستيراد: '+nE+' أكسبشن · '+nM+' شكوي موظف · '+nP+' مشكلة منتج · '+nT+' Technical Issue');
   }catch(err){console.error(err);toast('⚠️ حصل خطأ في قراءة الملف','warn');}
   e.target.value='';
 });
@@ -1351,12 +1476,13 @@ function normDate(v){
 function signatureOf(type,r){
   if(type==='exc')return [normDate(r.date),String(r.agent||'').trim(),String(r.contact||'').trim(),String(r.mobileType||'').trim(),String(r.issue||'').trim(),String(r.exctype||'').trim(),String(+r.amount||0),String(r.desc||'').trim()].join('§');
   if(type==='emp')return [normDate(r.entryDate),String(r.name||'').trim(),String(r.phone||'').trim(),String(r.mobileType||'').trim(),String(r.branch||'').trim(),String(r.agent||'').trim(),String(r.complaint||'').trim()].join('§');
+  if(type==='tech')return [normDate(r.entryDate),String(r.name||'').trim(),String(r.phone||'').trim(),String(r.mobileType||'').trim(),String(r.branch||'').trim(),String(r.agent||'').trim(),String(r.complaint||'').trim()].join('§');
   return [normDate(r.entryDate),String(r.name||'').trim(),String(r.mobileType||'').trim(),String(r.mobileNum||'').trim(),String(r.product||'').trim(),normDate(r.purchase),String(r.desc||'').trim()].join('§');
 }
 /* فحص تكرار قبل الحفظ — نفس البصمة بالظبط يعني السجل موجود */
 function isDup(type,rec,excludeId){
   const sig=signatureOf(type,rec);
-  return {exc:exc,emp:emp,prod:prod}[type].some(r=>r.id!==excludeId&&signatureOf(type,r)===sig);
+  return {exc:exc,emp:emp,prod:prod,tech:tech}[type].some(r=>r.id!==excludeId&&signatureOf(type,r)===sig);
 }
 function gsPullAll(silent){
   const url=sheetURL();
@@ -1375,14 +1501,17 @@ function gsPullAll(silent){
       const sigE=new Set(exc.map(r=>signatureOf('exc',r)));
       const sigM=new Set(emp.map(r=>signatureOf('emp',r)));
       const sigP=new Set(prod.map(r=>signatureOf('prod',r)));
+      const sigT=new Set(tech.map(r=>signatureOf('tech',r)));
       (d.data&&d.data.exc||[]).forEach(r0=>{const r=Object.assign({},r0);r.date=normDate(r.date);const s=signatureOf('exc',r);if(!sigE.has(s)){sigE.add(s);add.push(['exc',Object.assign({id:genId(),_synced:true},r)]);}});
       (d.data&&d.data.emp||[]).forEach(r0=>{const r=Object.assign({},r0);r.entryDate=normDate(r.entryDate);const s=signatureOf('emp',r);if(!sigM.has(s)){sigM.add(s);add.push(['emp',Object.assign({id:genId(),_synced:true},r)]);}});
       (d.data&&d.data.prod||[]).forEach(r0=>{const r=Object.assign({},r0);r.entryDate=normDate(r.entryDate);r.purchase=normDate(r.purchase);const s=signatureOf('prod',r);if(!sigP.has(s)){sigP.add(s);add.push(['prod',Object.assign({id:genId(),_synced:true},r)]);}});
-      add.forEach(p=>{({exc:exc,emp:emp,prod:prod})[p[0]].push(p[1]);});
+      (d.data&&d.data.tech||[]).forEach(r0=>{const r=Object.assign({},r0);r.entryDate=normDate(r.entryDate);const s=signatureOf('tech',r);if(!sigT.has(s)){sigT.add(s);add.push(['tech',Object.assign({id:genId(),_synced:true},r)]);}});
+      add.forEach(p=>{({exc:exc,emp:emp,prod:prod,tech:tech})[p[0]].push(p[1]);});
       if(add.length){
         exc.sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
         emp.sort((a,b)=>String(b.entryDate||'').localeCompare(String(a.entryDate||'')));
         prod.sort((a,b)=>String(b.entryDate||'').localeCompare(String(a.entryDate||'')));
+        tech.sort((a,b)=>String(b.entryDate||'').localeCompare(String(a.entryDate||'')));
         saveLS();renderTables();renderAnalysis();updateGsUI();
         toast('⬇ استوردت '+add.length+' سجل من Google Sheet');
       }else if(!silent)toast('✔ السجلات محدثة بالفعل — الشيت فيه كل حاجة');
@@ -1420,10 +1549,13 @@ on('installBtn','click',async()=>{
 (function fillBranches(){
   const s=$('#epiBranch');
   BRANCHES.forEach(b=>{const o=document.createElement('option');o.value=b;o.textContent=b;s.appendChild(o);});
+  const s2=$('#tiBranch');
+  BRANCHES.forEach(b=>{const o=document.createElement('option');o.value=b;o.textContent=b;s2.appendChild(o);});
 })();
 resetExcForm();
 resetEmpForm();
 resetProdForm();
+resetTechForm();
 refreshDatalists();
 renderTables();
 renderAnalysis();
