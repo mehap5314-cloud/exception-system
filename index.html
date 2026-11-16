@@ -440,7 +440,7 @@ function doPost(e) {
       return ss.getSheetByName(eng) || ss.getSheetByName(arb) || ss.insertSheet(eng);
     }
     var CFG = {
-      exc: { eng: "Excibsons", arb: "الأكسبشن", headers: ["ID","Date","Agent","Contact Number","Mobile Type","Issue","Excibsons","Reason","Description","Amount Refund"],
+      exc: { eng: "Excibsons", arb: "الأكسبشن", keys: ["date","agent","contact"], headers: ["ID","Date","Agent","Contact Number","Mobile Type","Issue","Excibsons","Reason","Description","Amount Refund"],
         map: [ ["id", ["ID","Record ID"]],
                ["date", ["Date","التاريخ","تاريخ الفتح"]],
                ["agent", ["Agent","الموظف","اسم الموظف"]],
@@ -451,7 +451,7 @@ function doPost(e) {
                ["reason", ["Reason","السبب"]],
                ["desc", ["Description","الوصف","تفاصيل"]],
                ["amount", ["Amount Refund","مبلغ الاسترداد"]] ] },
-      emp: { eng: "Employee Issues", arb: "مشكلة موظف", headers: ["ID","Date","Customer","Customer Number","Mobile Type","Branch","Employee Name","Complaint"],
+      emp: { eng: "Employee Issues", arb: "مشكلة موظف", keys: ["entryDate","name","phone"], headers: ["ID","Date","Customer","Customer Number","Mobile Type","Branch","Employee Name","Complaint"],
         map: [ ["id", ["ID","Record ID"]],
                ["entryDate", ["Date","التاريخ"]],
                ["name", ["Customer","اسم العميل","العميل"]],
@@ -460,7 +460,7 @@ function doPost(e) {
                ["branch", ["Branch","الفرع"]],
                ["agent", ["Employee Name","اسم الموظف","الموظف"]],
                ["complaint", ["Complaint","الشكوي","الشكوى","وصف الشكوي"]] ] },
-      prod: { eng: "Product Issues", arb: "مشكلة منتج", headers: ["ID","Customer","Mobile Type","Mobile Number","Product","Purchase Date","Problem","Recorded On"],
+      prod: { eng: "Product Issues", arb: "مشكلة منتج", keys: ["name","mobileNum"], headers: ["ID","Customer","Mobile Type","Mobile Number","Product","Purchase Date","Problem","Recorded On"],
         map: [ ["id", ["ID","Record ID"]],
                ["name", ["Customer","العميل","اسم العميل"]],
                ["mobileType", ["Mobile Type","نوع الموبايل"]],
@@ -469,7 +469,7 @@ function doPost(e) {
                ["purchase", ["Purchase Date","تاريخ الشراء"]],
                ["desc", ["Problem","الوصف","المشكلة"]],
                ["entryDate", ["Recorded On","تاريخ التسجيل"]] ] },
-      tech: { eng: "Technical Issue", arb: "Technical Issue", headers: ["ID","Date","Customer","Customer Number","Branch","Employee Name","Mobile Type","Complaint"],
+      tech: { eng: "Technical Issue", arb: "Technical Issue", keys: ["entryDate","name","phone"], headers: ["ID","Date","Customer","Customer Number","Branch","Employee Name","Mobile Type","Complaint"],
         map: [ ["id", ["ID","Record ID"]],
                ["entryDate", ["Date","التاريخ","تاريخ الشكوي"]],
                ["name", ["Customer","اسم العميل","العميل"]],
@@ -510,18 +510,21 @@ function doPost(e) {
       for (var i = 0; i !== hdr.length; i++) { if (String(hdr[i]).trim() === "ID") { idCol = i + 1; break; } }
       var existingIds = [];
       if (idCol && s.getLastRow() > 1) existingIds = s.getRange(2, idCol, s.getLastRow() - 1, 1).getValues();
-      if (s.getLastRow() > 1) {
-        var oldVals = s.getRange(2, 1, s.getLastRow() - 1, maxCol).getValues();
-        var keyCols = layout.map(function (p) { return p[1] - 1; });
-        oldVals.forEach(function (row) {
-          var parts = keyCols.map(function (c) {
-            var v = row[c];
-            if (v instanceof Date) v = normDate(v);
-            return String(v === null ? "" : v).trim();
-          });
-          sigs[parts.join("§")] = 1;
+      var oldRows = (s.getLastRow() > 1) ? s.getRange(2, 1, s.getLastRow() - 1, maxCol).getValues() : [];
+      var keyCols = [];
+      if (cfg.keys) {
+        cfg.keys.forEach(function (k) {
+          for (var i = 0; i !== layout.length; i++) { if (layout[i][0] === k) { keyCols.push(layout[i][1] - 1); break; } }
         });
       }
+      oldRows.forEach(function (row) {
+        var sigParts = layout.map(function (p) { return p[1] - 1; }).map(function (c) {
+          var v = row[c];
+          if (v instanceof Date) v = normDate(v);
+          return String(v === null ? "" : v).trim();
+        });
+        sigs[sigParts.join("§")] = 1;
+      });
       var added = 0, skipped = 0, updated = 0;
       rows.forEach(function (r) {
         var row = [];
@@ -537,15 +540,37 @@ function doPost(e) {
             }
           }
         }
-        var keyCols2 = layout.map(function (p) { return p[1] - 1; });
-        var parts = keyCols2.map(function (c) {
+        var sigParts = layout.map(function (p) { return p[1] - 1; }).map(function (c) {
           var v = row[c];
           if (v instanceof Date) v = normDate(v);
           return String(v === null ? "" : v).trim();
         });
-        var sig = parts.join("§");
+        var sig = sigParts.join("§");
         if (sigs[sig]) { skipped++; return; }
         sigs[sig] = 1;
+        /* التعرف الاحتياطي: لو الـ ID مش موجود في الشيت (سجل قديم) — يدوّر على الصف بنفس المفتاح (تاريخ + موظف + رقم) لو مطابق لصف واحد بس وحدثه */
+        if (keyCols.length && oldRows.length) {
+          var keyStr = keyCols.map(function (c) {
+            var v = row[c];
+            if (v instanceof Date) v = normDate(v);
+            return String(v === null ? "" : v).trim();
+          }).join("§");
+          var matches = [];
+          oldRows.forEach(function (or, oi) {
+            var op = keyCols.map(function (c) {
+              var v = or[c];
+              if (v instanceof Date) v = normDate(v);
+              return String(v === null ? "" : v).trim();
+            }).join("§");
+            if (op === keyStr) matches.push(oi);
+          });
+          if (matches.length === 1) {
+            if (idCol && rid) row[idCol - 1] = rid;
+            s.getRange(matches[0] + 2, 1, 1, maxCol).setValues([row]);
+            updated++;
+            return;
+          }
+        }
         s.appendRow(row);
         added++;
       });
@@ -1530,15 +1555,35 @@ function gsPullAll(silent){
         else if(!silent)toast('⚠️ رد غير متوقع من الشيت','warn');
         return;
       }
-      const add=[];
+      const add=[];let idFix=0;
       const sigE=new Set(exc.map(r=>signatureOf('exc',r)));
       const sigM=new Set(emp.map(r=>signatureOf('emp',r)));
       const sigP=new Set(prod.map(r=>signatureOf('prod',r)));
       const sigT=new Set(tech.map(r=>signatureOf('tech',r)));
-      (d.data&&d.data.exc||[]).forEach(r0=>{const r=Object.assign({},r0);if(!r.id)delete r.id;r.date=normDate(r.date);const s=signatureOf('exc',r);if(!sigE.has(s)){sigE.add(s);add.push(['exc',Object.assign({id:genId(),_synced:true},r)]);}});
-      (d.data&&d.data.emp||[]).forEach(r0=>{const r=Object.assign({},r0);if(!r.id)delete r.id;r.entryDate=normDate(r.entryDate);const s=signatureOf('emp',r);if(!sigM.has(s)){sigM.add(s);add.push(['emp',Object.assign({id:genId(),_synced:true},r)]);}});
-      (d.data&&d.data.prod||[]).forEach(r0=>{const r=Object.assign({},r0);if(!r.id)delete r.id;r.entryDate=normDate(r.entryDate);r.purchase=normDate(r.purchase);const s=signatureOf('prod',r);if(!sigP.has(s)){sigP.add(s);add.push(['prod',Object.assign({id:genId(),_synced:true},r)]);}});
-      (d.data&&d.data.tech||[]).forEach(r0=>{const r=Object.assign({},r0);if(!r.id)delete r.id;r.entryDate=normDate(r.entryDate);const s=signatureOf('tech',r);if(!sigT.has(s)){sigT.add(s);add.push(['tech',Object.assign({id:genId(),_synced:true},r)]);}});
+      (d.data&&d.data.exc||[]).forEach(r0=>{
+        const r=Object.assign({},r0);if(!r.id)delete r.id;r.date=normDate(r.date);
+        const s=signatureOf('exc',r);
+        if(!sigE.has(s)){sigE.add(s);add.push(['exc',Object.assign({id:genId(),_synced:true},r)]);}
+        else if(r.id){exc.forEach(l=>{if(signatureOf('exc',l)===s&&l.id!==r.id){l.id=r.id;l._synced=true;idFix++;}});}
+      });
+      (d.data&&d.data.emp||[]).forEach(r0=>{
+        const r=Object.assign({},r0);if(!r.id)delete r.id;r.entryDate=normDate(r.entryDate);
+        const s=signatureOf('emp',r);
+        if(!sigM.has(s)){sigM.add(s);add.push(['emp',Object.assign({id:genId(),_synced:true},r)]);}
+        else if(r.id){emp.forEach(l=>{if(signatureOf('emp',l)===s&&l.id!==r.id){l.id=r.id;l._synced=true;idFix++;}});}
+      });
+      (d.data&&d.data.prod||[]).forEach(r0=>{
+        const r=Object.assign({},r0);if(!r.id)delete r.id;r.entryDate=normDate(r.entryDate);r.purchase=normDate(r.purchase);
+        const s=signatureOf('prod',r);
+        if(!sigP.has(s)){sigP.add(s);add.push(['prod',Object.assign({id:genId(),_synced:true},r)]);}
+        else if(r.id){prod.forEach(l=>{if(signatureOf('prod',l)===s&&l.id!==r.id){l.id=r.id;l._synced=true;idFix++;}});}
+      });
+      (d.data&&d.data.tech||[]).forEach(r0=>{
+        const r=Object.assign({},r0);if(!r.id)delete r.id;r.entryDate=normDate(r.entryDate);
+        const s=signatureOf('tech',r);
+        if(!sigT.has(s)){sigT.add(s);add.push(['tech',Object.assign({id:genId(),_synced:true},r)]);}
+        else if(r.id){tech.forEach(l=>{if(signatureOf('tech',l)===s&&l.id!==r.id){l.id=r.id;l._synced=true;idFix++;}});}
+      });
       add.forEach(p=>{({exc:exc,emp:emp,prod:prod,tech:tech})[p[0]].push(p[1]);});
       if(add.length){
         exc.sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
@@ -1546,7 +1591,10 @@ function gsPullAll(silent){
         prod.sort((a,b)=>String(b.entryDate||'').localeCompare(String(a.entryDate||'')));
         tech.sort((a,b)=>String(b.entryDate||'').localeCompare(String(a.entryDate||'')));
         saveLS();renderTables();renderAnalysis();updateGsUI();
-        toast('⬇ استوردت '+add.length+' سجل من Google Sheet');
+        toast('⬇ استوردت '+add.length+' سجل من Google Sheet'+(idFix?' · واتظبطت هوية '+idFix+' سجل مع الشيت':''));
+      }else if(idFix){
+        saveLS();renderTables();updateGsUI();
+        toast('🔗 اتظبطت هوية '+idFix+' سجل مع الشيت — التعديلات هتروح لنفس الصف');
       }else if(!silent)toast('✔ السجلات محدثة بالفعل — الشيت فيه كل حاجة');
     })
     .catch(()=>{if(!silent)toast('⚠️ مفيش اتصال بالشيت — السجلات المحلية باقية','warn');});
