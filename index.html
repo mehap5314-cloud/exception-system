@@ -155,7 +155,7 @@
   /* ===== Modal ===== */
   .overlay{position:fixed;inset:0;z-index:150;background:rgba(10,40,48,.45);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;padding:18px}
   .overlay.show{display:flex}
-  .modal{width:min(760px,96vw);max-height:92vh;overflow:auto;background:rgba(255,255,255,.94);border-radius:22px;padding:22px;border:1px solid rgba(255,255,255,.9);box-shadow:0 24px 70px rgba(10,40,48,.4)}
+  .modal{width:min(1100px,96vw);max-height:92vh;overflow:auto;background:rgba(255,255,255,.94);border-radius:22px;padding:22px;border:1px solid rgba(255,255,255,.9);box-shadow:0 24px 70px rgba(10,40,48,.4)}
   .modal h3{font-size:1rem;font-weight:800;margin-bottom:12px;display:flex;align-items:center;gap:8px}
   .modal h3::before{content:'';width:4px;height:16px;border-radius:4px;background:var(--gradA)}
   .steps{font-size:.84rem;color:var(--ink);line-height:2;font-weight:600}
@@ -1276,10 +1276,10 @@ function openKpi(kind,extra){
   const [E,M,P]=filteredData();
   let title='',rows=[],headers=[];
   if(kind==='exc'){title='🎫 كل الأكسبشن';headers=['التاريخ','الموظف','رقم التواصل','نوع الموبايل','المشكلة','النوع','السبب (Reason)','المبلغ','الوصف'];rows=E.map(r=>[r.date,r.agent,esc(r.contact),esc(r.mobileType||'—'),r.issue,r.exctype,esc(r.reason||'—'),money(+r.amount||0),esc(r.desc)]);}
-  if(kind==='refund'){const R=E.filter(r=>+r.amount>0);title='💸 سجلات فيها مبالغ استرداد';headers=['التاريخ','الموظف','المشكلة','النوع','المبلغ','الوصف'];rows=R.map(r=>[r.date,r.agent,r.issue,r.exctype,money(+r.amount||0),esc(r.desc)]);}
+  if(kind==='refund'){const R=E.filter(r=>+r.amount>0);title='💸 سجلات فيها مبالغ استرداد';headers=['التاريخ','الموظف','المشكلة','النوع','السبب (Reason)','المبلغ','الوصف'];rows=R.map(r=>[r.date,r.agent,r.issue,r.exctype,esc(r.reason||'—'),money(+r.amount||0),esc(r.desc)]);}
   if(kind==='emp'){title='👥 شكاوي الموظفين';headers=['التاريخ','العميل','رقم العميل','نوع الموبايل','الفرع','الموظف','الشكوي'];rows=M.map(r=>[r.entryDate,esc(r.name),esc(r.phone),r.mobileType,r.branch,esc(r.agent),esc(r.complaint)]);}
   if(kind==='prod'){title='📱 مشاكل المنتجات';headers=['العميل','نوع الموبايل','رقم الموبايل','المنتج','تاريخ الشراء','المشكلة'];rows=P.map(r=>[esc(r.name),r.mobileType,esc(r.mobileNum),r.product,r.purchase,esc(r.desc)]);}
-  if(kind==='top'){const top=countBy(E,r=>r.issue)[0];const issue=top?top[0]:extra;title='🖥 أكثر مشكلة تكرارًا: '+issue;headers=['التاريخ','الموظف','رقم التواصل','النوع','المبلغ','الوصف'];rows=E.filter(r=>r.issue===issue).map(r=>[r.date,r.agent,esc(r.contact),r.exctype,money(+r.amount||0),esc(r.desc)]);}
+  if(kind==='top'){const top=countBy(E,r=>r.issue)[0];const issue=top?top[0]:extra;title='🖥 أكثر مشكلة تكرارًا: '+issue;headers=['التاريخ','الموظف','رقم التواصل','النوع','السبب (Reason)','المبلغ','الوصف'];rows=E.filter(r=>r.issue===issue).map(r=>[r.date,r.agent,esc(r.contact),r.exctype,esc(r.reason||'—'),money(+r.amount||0),esc(r.desc)]);}
   $('#kpiTitle').textContent=title;
   $('#kpiSub').textContent=fmt(rows.length)+' سجل'+($('#aFrom').value||$('#aTo').value?' · حسب الفلتر الزمني المحدد':'');
   $('#kpiTable').innerHTML=rows.length
