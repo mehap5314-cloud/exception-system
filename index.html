@@ -430,6 +430,65 @@
     <p class="mini-note" style="margin:8px 0">⚠️ عنوان صفحة الكود اللي فيه "/projects/…/edit" مش لينك الويب آب — لو حطيته هيظهرلك "فشل رفع السجل". الكود ده بيستخدم تاباتك الموجودة (الأكسبشن · مشكلة موظف · مشكلة منتج) ولو لقأها أسماء إنجليزي هيستخدمها لو مش موجودة يعملها.</p>
     <pre class="gscode" id="gsCode">
 // ⚠️ لازم الكود ده يتحط من داخل الشيت نفسه (Extensions ← Apps Script) عشان يبقى مربوط
+function normDate(v) {
+  var st = String(v === undefined || v === null ? "" : v);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(st)) return st;
+  var d = new Date(st);
+  if (!isNaN(d.getTime())) return Utilities.formatDate(d, Session.getScriptTimeZone(), "yyyy-MM-dd");
+  return st;
+}
+/* تنضيف السجلات المكررة في التاب — يحتفظ بأكمل نسخة (اللي لها ID أو السبب متسجل) ويحذف الباقي */
+function dedupeSheetRows(ss, cfg, ignore) {
+  var s = ss.getSheetByName(cfg.eng) || ss.getSheetByName(cfg.arb);
+  if (!s || s.getLastRow() < 2) return 0;
+  var cols = s.getLastColumn();
+  var headers = s.getRange(1, 1, 1, cols).getValues()[0];
+  var layout = [];
+  cfg.map.forEach(function (item) {
+    var alts = item[1], col = 0;
+    for (var i = 0; i !== headers.length; i++) {
+      var h = String(headers[i]).trim();
+      for (var j = 0; j !== alts.length; j++) { if (h === alts[j]) { col = i + 1; break; } }
+      if (col) break;
+    }
+    if (col) layout.push([item[0], col]);
+  });
+  if (!layout.length) return 0;
+  var vals = s.getRange(2, 1, s.getLastRow() - 1, cols).getValues();
+  function keyOf(row) {
+    return layout.filter(function (p) { return ignore.indexOf(p[0]) === -1; }).map(function (p) {
+      var v = row[p[1] - 1];
+      if (v instanceof Date) v = normDate(v);
+      return String(v === null ? "" : v).trim();
+    }).join("§");
+  }
+  function score(row) {
+    var sc = 0;
+    layout.forEach(function (p) {
+      var v = String(row[p[1] - 1] === null ? "" : row[p[1] - 1]).trim();
+      if (p[0] === "id" && v) sc += 4;
+      else if (ignore.indexOf("reason") !== -1 && p[0] === "reason" && v) sc += 2;
+    });
+    return sc;
+  }
+  var groups = {};
+  for (var i = 0; i < vals.length; i++) {
+    var k = keyOf(vals[i]);
+    if (!k.replace(/§/g, "")) continue;
+    if (!(k in groups)) groups[k] = [];
+    groups[k].push(i);
+  }
+  var toDelete = [];
+  Object.keys(groups).forEach(function (k) {
+    var g = groups[k];
+    if (g.length < 2) return;
+    var best = g[0];
+    g.forEach(function (idx) { if (score(vals[idx]) > score(vals[best])) best = idx; });
+    g.forEach(function (idx) { if (idx !== best) toDelete.push(idx); });
+  });
+  toDelete.sort(function (a, b) { return b - a; }).forEach(function (idx) { s.deleteRow(idx + 2); });
+  return toDelete.length;
+}
 function doPost(e) {
   var out = { ok: false };
   try {
@@ -578,15 +637,16 @@ function doPost(e) {
       out.skipped = (out.skipped || 0) + skipped;
       out.updated = (out.updated || 0) + updated;
     }
-    if (data.type === "exc") writeRows(CFG.exc, [data]);
-    else if (data.type === "emp") writeRows(CFG.emp, [data]);
-    else if (data.type === "prod") writeRows(CFG.prod, [data]);
-    else if (data.type === "tech") writeRows(CFG.tech, [data]);
+    if (data.type === "exc") { writeRows(CFG.exc, [data]); out.deduped = dedupeSheetRows(ss, CFG.exc, ["id", "reason"]); }
+    else if (data.type === "emp") { writeRows(CFG.emp, [data]); out.deduped = dedupeSheetRows(ss, CFG.emp, ["id"]); }
+    else if (data.type === "prod") { writeRows(CFG.prod, [data]); out.deduped = dedupeSheetRows(ss, CFG.prod, ["id"]); }
+    else if (data.type === "tech") { writeRows(CFG.tech, [data]); out.deduped = dedupeSheetRows(ss, CFG.tech, ["id"]); }
     else if (data.type === "syncAll") {
       writeRows(CFG.exc, data.exc);
       writeRows(CFG.emp, data.emp);
       writeRows(CFG.prod, data.prod);
       writeRows(CFG.tech, data.tech);
+      out.deduped = dedupeSheetRows(ss, CFG.exc, ["id", "reason"]) + dedupeSheetRows(ss, CFG.emp, ["id"]) + dedupeSheetRows(ss, CFG.prod, ["id"]) + dedupeSheetRows(ss, CFG.tech, ["id"]);
     }
     out.ok = true;
   } catch (err) { out.err = String(err); }
@@ -665,6 +725,11 @@ function doGet(e) {
     out.data.emp = readRows(CFG.emp);
     out.data.prod = readRows(CFG.prod);
     out.data.tech = readRows(CFG.tech);
+    /* تنضيف المكررات من الشيت نفسه عند الجلب — يحتفظ بالنسخة الأكمل */
+    try {
+      out.deduped = dedupeSheetRows(ss, CFG.exc, ["id", "reason"]) + dedupeSheetRows(ss, CFG.emp, ["id"]) + dedupeSheetRows(ss, CFG.prod, ["id"]) + dedupeSheetRows(ss, CFG.tech, ["id"]);
+      if (out.deduped) { out.data.exc = readRows(CFG.exc); out.data.emp = readRows(CFG.emp); out.data.prod = readRows(CFG.prod); out.data.tech = readRows(CFG.tech); }
+    } catch (_d) {}
     out.ok = true;
   } catch (err) { out.err = String(err); }
   return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON);
@@ -731,6 +796,8 @@ function loadLS(){
     ags=JSON.parse(localStorage.getItem(LS.agents)||'null');
     if(!ags)ags=[...DEFAULT_EXC_AGENTS];
     if(!ags.length)ags=[...DEFAULT_EXC_AGENTS];
+    const dd=dedupeAll();
+    if(dd)saveLS();
   }catch(e){exc=[];emp=[];prod=[];tech=[];ags=[...DEFAULT_EXC_AGENTS];}
 }
 function allAgentNames(){
@@ -1542,6 +1609,34 @@ function isDup(type,rec,excludeId){
   const sig=signatureOf(type,rec);
   return {exc:exc,emp:emp,prod:prod,tech:tech}[type].some(r=>r.id!==excludeId&&signatureOf(type,r)===sig);
 }
+/* مفتاح التكرار المرن — زي البصمة بس من غير السبب (Reason) عشان النسخة القديمة (بدون سبب) والجديدة (بسبب) يتعرفوا على بعض */
+function dupKeyOf(type,r){
+  if(type==='exc')return [normDate(r.date),String(r.agent||'').trim(),String(r.contact||'').trim(),String(r.mobileType||'').trim(),String(r.issue||'').trim(),String(r.exctype||'').trim(),String(+r.amount||0),String(r.desc||'').trim()].join('§');
+  return signatureOf(type,r);
+}
+/* نقاط الأولوية: اللي له ID من الشيت والسبب متسجل فيه هو الأكمل */
+function recScore(type,r){
+  let s=0;
+  if(r._synced&&r.id)s+=4;
+  if(type==='exc'&&String(r.reason||'').trim())s+=2;
+  return s;
+}
+/* تنضيف المكررات — يحتفظ بأكمل نسخة ويشيل الباقي */
+function dedupeAll(){
+  let removed=0;
+  ['exc','emp','prod','tech'].forEach(type=>{
+    const arr={exc:exc,emp:emp,prod:prod,tech:tech}[type];
+    const best={};const out=[];
+    arr.forEach(r=>{
+      const k=dupKeyOf(type,r);
+      if(!(k in best)){best[k]=r;out.push(r);return;}
+      removed++;
+      if(recScore(type,r)>recScore(type,best[k])){out[out.indexOf(best[k])]=r;best[k]=r;}
+    });
+    if(out.length!==arr.length){exc=type==='exc'?out:exc;emp=type==='emp'?out:emp;prod=type==='prod'?out:prod;tech=type==='tech'?out:tech;}
+  });
+  return removed;
+}
 function gsPullAll(silent){
   const url=sheetURL();
   if(!url){if(!silent)toast('⚠️ اربط Google Sheet الأول','warn');return;}
@@ -1585,14 +1680,15 @@ function gsPullAll(silent){
         else if(r.id){tech.forEach(l=>{if(signatureOf('tech',l)===s&&l.id!==r.id){l.id=r.id;l._synced=true;idFix++;}});}
       });
       add.forEach(p=>{({exc:exc,emp:emp,prod:prod,tech:tech})[p[0]].push(p[1]);});
-      if(add.length){
+      const dd=dedupeAll();
+      if(add.length||dd){
         exc.sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
         emp.sort((a,b)=>String(b.entryDate||'').localeCompare(String(a.entryDate||'')));
         prod.sort((a,b)=>String(b.entryDate||'').localeCompare(String(a.entryDate||'')));
         tech.sort((a,b)=>String(b.entryDate||'').localeCompare(String(a.entryDate||'')));
         saveLS();renderTables();renderAnalysis();updateGsUI();
-        toast('⬇ استوردت '+add.length+' سجل من Google Sheet'+(idFix?' · واتظبطت هوية '+idFix+' سجل مع الشيت':''));
-      }else if(idFix){
+        toast('⬇ استوردت '+add.length+' سجل من Google Sheet'+(dd?' · ونضفت '+dd+' سجل مكرر':'')+(idFix?' · واتظبطت هوية '+idFix+' سجل مع الشيت':''));
+      }else if(idFix||dd){
         saveLS();renderTables();updateGsUI();
         toast('🔗 اتظبطت هوية '+idFix+' سجل مع الشيت — التعديلات هتروح لنفس الصف');
       }else if(!silent)toast('✔ السجلات محدثة بالفعل — الشيت فيه كل حاجة');
