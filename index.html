@@ -435,8 +435,9 @@ function doPost(e) {
       return ss.getSheetByName(eng) || ss.getSheetByName(arb) || ss.insertSheet(eng);
     }
     var CFG = {
-      exc: { eng: "Excibsons", arb: "الأكسبشن", headers: ["Date","Agent","Contact Number","Mobile Type","Issue","Excibsons","Description","Amount Refund"],
-        map: [ ["date", ["Date","التاريخ","تاريخ الفتح"]],
+      exc: { eng: "Excibsons", arb: "الأكسبشن", headers: ["ID","Date","Agent","Contact Number","Mobile Type","Issue","Excibsons","Description","Amount Refund"],
+        map: [ ["id", ["ID","Record ID"]],
+               ["date", ["Date","التاريخ","تاريخ الفتح"]],
                ["agent", ["Agent","الموظف","اسم الموظف"]],
                ["contact", ["Contact Number","رقم التواصل","رقم العميل"]],
                ["mobileType", ["Mobile Type","نوع الموبايل"]],
@@ -444,24 +445,27 @@ function doPost(e) {
                ["exctype", ["Excibsons","Exceptions","الأكسبشن"]],
                ["desc", ["Description","الوصف","تفاصيل"]],
                ["amount", ["Amount Refund","مبلغ الاسترداد"]] ] },
-      emp: { eng: "Employee Issues", arb: "مشكلة موظف", headers: ["Date","Customer","Customer Number","Mobile Type","Branch","Employee Name","Complaint"],
-        map: [ ["entryDate", ["Date","التاريخ"]],
+      emp: { eng: "Employee Issues", arb: "مشكلة موظف", headers: ["ID","Date","Customer","Customer Number","Mobile Type","Branch","Employee Name","Complaint"],
+        map: [ ["id", ["ID","Record ID"]],
+               ["entryDate", ["Date","التاريخ"]],
                ["name", ["Customer","اسم العميل","العميل"]],
                ["phone", ["Customer Number","رقم العميل"]],
                ["mobileType", ["Mobile Type","نوع الموبايل"]],
                ["branch", ["Branch","الفرع"]],
                ["agent", ["Employee Name","اسم الموظف","الموظف"]],
                ["complaint", ["Complaint","الشكوي","الشكوى","وصف الشكوي"]] ] },
-      prod: { eng: "Product Issues", arb: "مشكلة منتج", headers: ["Customer","Mobile Type","Mobile Number","Product","Purchase Date","Problem","Recorded On"],
-        map: [ ["name", ["Customer","العميل","اسم العميل"]],
+      prod: { eng: "Product Issues", arb: "مشكلة منتج", headers: ["ID","Customer","Mobile Type","Mobile Number","Product","Purchase Date","Problem","Recorded On"],
+        map: [ ["id", ["ID","Record ID"]],
+               ["name", ["Customer","العميل","اسم العميل"]],
                ["mobileType", ["Mobile Type","نوع الموبايل"]],
                ["mobileNum", ["Mobile Number","رقم الموبايل","IMEI"]],
                ["product", ["Product","المنتج"]],
                ["purchase", ["Purchase Date","تاريخ الشراء"]],
                ["desc", ["Problem","الوصف","المشكلة"]],
                ["entryDate", ["Recorded On","تاريخ التسجيل"]] ] },
-      tech: { eng: "Technical Issue", arb: "Technical Issue", headers: ["Date","Customer","Customer Number","Branch","Employee Name","Mobile Type","Complaint"],
-        map: [ ["entryDate", ["Date","التاريخ","تاريخ الشكوي"]],
+      tech: { eng: "Technical Issue", arb: "Technical Issue", headers: ["ID","Date","Customer","Customer Number","Branch","Employee Name","Mobile Type","Complaint"],
+        map: [ ["id", ["ID","Record ID"]],
+               ["entryDate", ["Date","التاريخ","تاريخ الشكوي"]],
                ["name", ["Customer","اسم العميل","العميل"]],
                ["phone", ["Customer Number","رقم العميل"]],
                ["branch", ["Branch","الفرع"]],
@@ -496,6 +500,10 @@ function doPost(e) {
         return st;
       }
       var sigs = {};
+      var idCol = 0;
+      for (var i = 0; i !== hdr.length; i++) { if (String(hdr[i]).trim() === "ID") { idCol = i + 1; break; } }
+      var existingIds = [];
+      if (idCol && s.getLastRow() > 1) existingIds = s.getRange(2, idCol, s.getLastRow() - 1, 1).getValues();
       if (s.getLastRow() > 1) {
         var oldVals = s.getRange(2, 1, s.getLastRow() - 1, maxCol).getValues();
         var keyCols = layout.map(function (p) { return p[1] - 1; });
@@ -508,11 +516,21 @@ function doPost(e) {
           sigs[parts.join("§")] = 1;
         });
       }
-      var added = 0, skipped = 0;
+      var added = 0, skipped = 0, updated = 0;
       rows.forEach(function (r) {
         var row = [];
         for (var i = 0; i !== maxCol; i++) row.push("");
         layout.forEach(function (p) { row[p[1] - 1] = (r[p[0]] === undefined || r[p[0]] === null) ? "" : r[p[0]]; });
+        var rid = String(r.id === undefined || r.id === null ? "" : r.id).trim();
+        if (rid && idCol) {
+          for (var k = 0; k !== existingIds.length; k++) {
+            if (String(existingIds[k][0]).trim() === rid) {
+              s.getRange(k + 2, 1, 1, maxCol).setValues([row]);
+              updated++;
+              return;
+            }
+          }
+        }
         var keyCols2 = layout.map(function (p) { return p[1] - 1; });
         var parts = keyCols2.map(function (c) {
           var v = row[c];
@@ -527,6 +545,7 @@ function doPost(e) {
       });
       out.added = (out.added || 0) + added;
       out.skipped = (out.skipped || 0) + skipped;
+      out.updated = (out.updated || 0) + updated;
     }
     if (data.type === "exc") writeRows(CFG.exc, [data]);
     else if (data.type === "emp") writeRows(CFG.emp, [data]);
@@ -550,7 +569,8 @@ function doGet(e) {
     if (!ss) { out.err = "NOT-BOUND"; return ContentService.createTextOutput(JSON.stringify(out)).setMimeType(ContentService.MimeType.JSON); }
     var CFG = {
       exc: { eng: "Excibsons", arb: "الأكسبشن",
-        map: [ ["date", ["Date","التاريخ","تاريخ الفتح"]],
+        map: [ ["id", ["ID","Record ID"]],
+               ["date", ["Date","التاريخ","تاريخ الفتح"]],
                ["agent", ["Agent","الموظف","اسم الموظف"]],
                ["contact", ["Contact Number","رقم التواصل","رقم العميل"]],
                ["mobileType", ["Mobile Type","نوع الموبايل"]],
@@ -559,7 +579,8 @@ function doGet(e) {
                ["desc", ["Description","الوصف","تفاصيل"]],
                ["amount", ["Amount Refund","مبلغ الاسترداد"]] ] },
       emp: { eng: "Employee Issues", arb: "مشكلة موظف",
-        map: [ ["entryDate", ["Date","التاريخ"]],
+        map: [ ["id", ["ID","Record ID"]],
+               ["entryDate", ["Date","التاريخ"]],
                ["name", ["Customer","اسم العميل","العميل"]],
                ["phone", ["Customer Number","رقم العميل"]],
                ["mobileType", ["Mobile Type","نوع الموبايل"]],
@@ -567,7 +588,8 @@ function doGet(e) {
                ["agent", ["Employee Name","اسم الموظف","الموظف"]],
                ["complaint", ["Complaint","الشكوي","الشكوى","وصف الشكوي"]] ] },
       prod: { eng: "Product Issues", arb: "مشكلة منتج",
-        map: [ ["name", ["Customer","العميل","اسم العميل"]],
+        map: [ ["id", ["ID","Record ID"]],
+               ["name", ["Customer","العميل","اسم العميل"]],
                ["mobileType", ["Mobile Type","نوع الموبايل"]],
                ["mobileNum", ["Mobile Number","رقم الموبايل","IMEI"]],
                ["product", ["Product","المنتج"]],
@@ -575,7 +597,8 @@ function doGet(e) {
                ["desc", ["Problem","الوصف","المشكلة"]],
                ["entryDate", ["Recorded On","تاريخ التسجيل"]] ] },
       tech: { eng: "Technical Issue", arb: "Technical Issue",
-        map: [ ["entryDate", ["Date","التاريخ","تاريخ الشكوي"]],
+        map: [ ["id", ["ID","Record ID"]],
+               ["entryDate", ["Date","التاريخ","تاريخ الشكوي"]],
                ["name", ["Customer","اسم العميل","العميل"]],
                ["phone", ["Customer Number","رقم العميل"]],
                ["branch", ["Branch","الفرع"]],
@@ -1254,10 +1277,10 @@ function pushRec(type,rec){
     return;
   }
   const payload={};
-  if(type==='exc')Object.assign(payload,{type:'exc',date:rec.date,agent:rec.agent,contact:rec.contact,mobileType:rec.mobileType||'',issue:rec.issue,exctype:rec.exctype,desc:rec.desc,amount:rec.amount});
-  if(type==='emp')Object.assign(payload,{type:'emp',entryDate:rec.entryDate,name:rec.name,phone:rec.phone,mobileType:rec.mobileType,branch:rec.branch,agent:rec.agent,complaint:rec.complaint});
-  if(type==='prod')Object.assign(payload,{type:'prod',name:rec.name,mobileType:rec.mobileType,mobileNum:rec.mobileNum,product:rec.product,purchase:rec.purchase,desc:rec.desc,entryDate:rec.entryDate});
-  if(type==='tech')Object.assign(payload,{type:'tech',entryDate:rec.entryDate,name:rec.name,phone:rec.phone,mobileType:rec.mobileType,branch:rec.branch,agent:rec.agent,complaint:rec.complaint});
+  if(type==='exc')Object.assign(payload,{type:'exc',id:rec.id,date:rec.date,agent:rec.agent,contact:rec.contact,mobileType:rec.mobileType||'',issue:rec.issue,exctype:rec.exctype,desc:rec.desc,amount:rec.amount});
+  if(type==='emp')Object.assign(payload,{type:'emp',id:rec.id,entryDate:rec.entryDate,name:rec.name,phone:rec.phone,mobileType:rec.mobileType,branch:rec.branch,agent:rec.agent,complaint:rec.complaint});
+  if(type==='prod')Object.assign(payload,{type:'prod',id:rec.id,name:rec.name,mobileType:rec.mobileType,mobileNum:rec.mobileNum,product:rec.product,purchase:rec.purchase,desc:rec.desc,entryDate:rec.entryDate});
+  if(type==='tech')Object.assign(payload,{type:'tech',id:rec.id,entryDate:rec.entryDate,name:rec.name,phone:rec.phone,mobileType:rec.mobileType,branch:rec.branch,agent:rec.agent,complaint:rec.complaint});
   fetch(url,{method:'POST',body:JSON.stringify(payload)})
     .then(r=>r.text().then(txt=>({status:r.status,txt})))
     .then(({status,txt})=>{
@@ -1502,10 +1525,10 @@ function gsPullAll(silent){
       const sigM=new Set(emp.map(r=>signatureOf('emp',r)));
       const sigP=new Set(prod.map(r=>signatureOf('prod',r)));
       const sigT=new Set(tech.map(r=>signatureOf('tech',r)));
-      (d.data&&d.data.exc||[]).forEach(r0=>{const r=Object.assign({},r0);r.date=normDate(r.date);const s=signatureOf('exc',r);if(!sigE.has(s)){sigE.add(s);add.push(['exc',Object.assign({id:genId(),_synced:true},r)]);}});
-      (d.data&&d.data.emp||[]).forEach(r0=>{const r=Object.assign({},r0);r.entryDate=normDate(r.entryDate);const s=signatureOf('emp',r);if(!sigM.has(s)){sigM.add(s);add.push(['emp',Object.assign({id:genId(),_synced:true},r)]);}});
-      (d.data&&d.data.prod||[]).forEach(r0=>{const r=Object.assign({},r0);r.entryDate=normDate(r.entryDate);r.purchase=normDate(r.purchase);const s=signatureOf('prod',r);if(!sigP.has(s)){sigP.add(s);add.push(['prod',Object.assign({id:genId(),_synced:true},r)]);}});
-      (d.data&&d.data.tech||[]).forEach(r0=>{const r=Object.assign({},r0);r.entryDate=normDate(r.entryDate);const s=signatureOf('tech',r);if(!sigT.has(s)){sigT.add(s);add.push(['tech',Object.assign({id:genId(),_synced:true},r)]);}});
+      (d.data&&d.data.exc||[]).forEach(r0=>{const r=Object.assign({},r0);if(!r.id)delete r.id;r.date=normDate(r.date);const s=signatureOf('exc',r);if(!sigE.has(s)){sigE.add(s);add.push(['exc',Object.assign({id:genId(),_synced:true},r)]);}});
+      (d.data&&d.data.emp||[]).forEach(r0=>{const r=Object.assign({},r0);if(!r.id)delete r.id;r.entryDate=normDate(r.entryDate);const s=signatureOf('emp',r);if(!sigM.has(s)){sigM.add(s);add.push(['emp',Object.assign({id:genId(),_synced:true},r)]);}});
+      (d.data&&d.data.prod||[]).forEach(r0=>{const r=Object.assign({},r0);if(!r.id)delete r.id;r.entryDate=normDate(r.entryDate);r.purchase=normDate(r.purchase);const s=signatureOf('prod',r);if(!sigP.has(s)){sigP.add(s);add.push(['prod',Object.assign({id:genId(),_synced:true},r)]);}});
+      (d.data&&d.data.tech||[]).forEach(r0=>{const r=Object.assign({},r0);if(!r.id)delete r.id;r.entryDate=normDate(r.entryDate);const s=signatureOf('tech',r);if(!sigT.has(s)){sigT.add(s);add.push(['tech',Object.assign({id:genId(),_synced:true},r)]);}});
       add.forEach(p=>{({exc:exc,emp:emp,prod:prod,tech:tech})[p[0]].push(p[1]);});
       if(add.length){
         exc.sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
