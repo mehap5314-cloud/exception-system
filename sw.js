@@ -1,6 +1,6 @@
 // Service Worker — نظام إدخال البيانات
 // يخزّن صفحة الموقع والأيقونات عشان يفتح من أيقونة الجهاز بسرعة ويشتغل من غير نت لعرض السجلات
-const CACHE = 'exc-system-v1';
+const CACHE = 'exc-system-v2';
 const CORE = ['./', './index.html', './icon.svg', './icon-192.png', './icon-512.png', './manifest.json'];
 
 self.addEventListener('install', e => {
@@ -33,6 +33,11 @@ self.addEventListener('fetch', e => {
     // باقي الملفات: كاش أولاً
     e.respondWith(caches.match(e.request).then(hit => hit || fetch(e.request)));
     return;
+  }
+
+  // طلبات Google Sheet / Apps Script: شبكة مباشرة دايمًا — ممنوع الكاش نهائيًا عشان السحب يجيب البيانات الحقيقية
+  if (/script\.google\.com|googleusercontent\.com|google\.com\/macros/.test(url.href)) {
+    return; /* من غير respondWith = المتصفح يعمل الطلب عادي من الشبكة */
   }
 
   // مكتبات خارجية (خطوط + Chart.js + XLSX): كاش أول تحميل
