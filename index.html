@@ -1675,13 +1675,14 @@ function gsPullAll(silent){
   const url=sheetURL();
   if(!url){if(!silent)toast('⚠️ اربط Google Sheet الأول','warn');return;}
   if(!silent)toast('⟳ بجلب السجلات من الشيت...');
-  fetch(url,{method:'GET'})
+  fetch(url+(url.indexOf('?')>-1?'&':'?')+'cb='+Date.now(),{method:'GET',cache:'no-store'})
     .then(r=>r.text().then(t=>({status:r.status,t})))
     .then(({status,t})=>{
       let d=null;try{d=JSON.parse(t);}catch(_){}
       if(!d||!d.ok){
-        if(/<!DOCTYPE|<html/i.test(t.slice(0,200))){if(!silent)toast('⚠️ الشيت رجّع HTML — لازم تحدث كود Apps Script ثم New version','warn');}
-        else if(!silent)toast('⚠️ رد غير متوقع من الشيت','warn');
+        const tag=silent?'[سحب تلقائي] ':'';
+        if(/<!DOCTYPE|<html/i.test(t.slice(0,200)))toast(tag+'⚠️ الشيت رجّع HTML — لازم تحدث كود Apps Script ثم New version','warn');
+        else toast(tag+'⚠️ رد غير متوقع من الشيت — جرب تاني','warn');
         return;
       }
       const add=[];let idFix=0;
@@ -1727,7 +1728,7 @@ function gsPullAll(silent){
         toast('🔗 اتظبطت هوية '+idFix+' سجل مع الشيت — التعديلات هتروح لنفس الصف');
       }else if(!silent)toast('✔ السجلات محدثة بالفعل — الشيت فيه كل حاجة');
     })
-    .catch(()=>{if(!silent)toast('⚠️ مفيش اتصال بالشيت — السجلات المحلية باقية','warn');});
+    .catch(()=>{toast((silent?'[سحب تلقائي] ':'')+'⚠️ مفيش اتصال بالشيت — السجلات المحلية باقية','warn');});
 }
 on('gsPull','click',()=>gsPullAll(false));
 try{
