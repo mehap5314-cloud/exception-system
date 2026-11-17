@@ -122,7 +122,7 @@
   /* ===== Tables ===== */
   .table-wrap{overflow:auto;border-radius:14px;max-height:430px}
   table{width:100%;border-collapse:collapse;font-size:.82rem}
-  thead th{position:sticky;top:0;background:rgba(255,255,255,.78);backdrop-filter:blur(6px);color:var(--ink2);font-weight:800;text-align:right;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.75);font-size:.72rem;white-space:nowrap;z-index:2}
+  thead th{position:sticky;top:0;background:#fff;color:var(--ink2);font-weight:800;text-align:right;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.75);font-size:.72rem;white-space:nowrap;z-index:2}
   tbody td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.35);white-space:nowrap;color:var(--ink)}
   td.wrap{white-space:normal;min-width:160px;max-width:320px}
   tbody tr:hover{background:rgba(255,255,255,.25)}
@@ -437,7 +437,10 @@ function normDate(v) {
   if (!isNaN(d.getTime())) return Utilities.formatDate(d, Session.getScriptTimeZone(), "yyyy-MM-dd");
   return st;
 }
-/* تنضيف السجلات المكررة في التاب — يحتفظ بأكمل نسخة (اللي لها ID أو السبب متسجل) ويحذف الباقي */
+/* تنضيف المكرر بشكل آمن في التاب:
+   1) صفين متطابقين بالظبط → يحتفظ بالأكمل (له ID / سبب متسجل) ويحذف الباقي
+   2) صف قديم بدون سبب + صف بنفس كل البيانات وسبب واحد → دمج مع نقل السبب
+   3) صفين بأسباب مختلفة → سجلات حقيقية مختلفة — متمسش أبدًا */
 function dedupeSheetRows(ss, cfg, ignore) {
   var s = ss.getSheetByName(cfg.eng) || ss.getSheetByName(cfg.arb);
   if (!s || s.getLastRow() < 2) return 0;
@@ -455,35 +458,42 @@ function dedupeSheetRows(ss, cfg, ignore) {
   });
   if (!layout.length) return 0;
   var vals = s.getRange(2, 1, s.getLastRow() - 1, cols).getValues();
-  function keyOf(row) {
-    return layout.filter(function (p) { return ignore.indexOf(p[0]) === -1; }).map(function (p) {
-      var v = row[p[1] - 1];
-      if (v instanceof Date) v = normDate(v);
-      return String(v === null ? "" : v).trim();
-    }).join("§");
+  function norm(v) { if (v instanceof Date) v = normDate(v); return String(v === null || v === undefined ? "" : v).trim(); }
+  var reasonCol = -1;
+  layout.forEach(function (p) { if (p[0] === "reason") reasonCol = p[1] - 1; });
+  function baseKeyOf(row) {
+    return layout.filter(function (p) { return ignore.indexOf(p[0]) === -1 && p[0] !== "reason"; }).map(function (p) { return norm(row[p[1] - 1]); }).join("§");
   }
   function score(row) {
     var sc = 0;
     layout.forEach(function (p) {
-      var v = String(row[p[1] - 1] === null ? "" : row[p[1] - 1]).trim();
+      var v = norm(row[p[1] - 1]);
       if (p[0] === "id" && v) sc += 4;
-      else if (ignore.indexOf("reason") !== -1 && p[0] === "reason" && v) sc += 2;
+      else if (p[0] === "reason" && v) sc += 2;
     });
     return sc;
   }
-  var groups = {};
+  var base = {};
   for (var i = 0; i < vals.length; i++) {
-    var k = keyOf(vals[i]);
+    var k = baseKeyOf(vals[i]);
     if (!k.replace(/§/g, "")) continue;
-    if (!(k in groups)) groups[k] = [];
-    groups[k].push(i);
+    if (!(k in base)) base[k] = [];
+    base[k].push(i);
   }
   var toDelete = [];
-  Object.keys(groups).forEach(function (k) {
-    var g = groups[k];
+  Object.keys(base).forEach(function (k) {
+    var g = base[k];
     if (g.length < 2) return;
+    var reasons = [];
+    if (reasonCol > -1) g.forEach(function (idx) { var v = norm(vals[idx][reasonCol]); if (v && reasons.indexOf(v) === -1) reasons.push(v); });
+    if (reasons.length > 1) return; /* أسباب مختلفة = سجلات حقيقية مختلفة — متمسش أبدًا */
     var best = g[0];
     g.forEach(function (idx) { if (score(vals[idx]) > score(vals[best])) best = idx; });
+    if (reasons.length === 1 && reasonCol > -1 && !norm(vals[best][reasonCol])) {
+      var src = -1;
+      g.forEach(function (idx) { if (idx !== best && norm(vals[idx][reasonCol]) && src === -1) src = idx; });
+      if (src > -1) s.getRange(best + 2, reasonCol + 1).setValue(vals[src][reasonCol]);
+    }
     g.forEach(function (idx) { if (idx !== best) toDelete.push(idx); });
   });
   toDelete.sort(function (a, b) { return b - a; }).forEach(function (idx) { s.deleteRow(idx + 2); });
@@ -1609,11 +1619,6 @@ function isDup(type,rec,excludeId){
   const sig=signatureOf(type,rec);
   return {exc:exc,emp:emp,prod:prod,tech:tech}[type].some(r=>r.id!==excludeId&&signatureOf(type,r)===sig);
 }
-/* مفتاح التكرار المرن — زي البصمة بس من غير السبب (Reason) عشان النسخة القديمة (بدون سبب) والجديدة (بسبب) يتعرفوا على بعض */
-function dupKeyOf(type,r){
-  if(type==='exc')return [normDate(r.date),String(r.agent||'').trim(),String(r.contact||'').trim(),String(r.mobileType||'').trim(),String(r.issue||'').trim(),String(r.exctype||'').trim(),String(+r.amount||0),String(r.desc||'').trim()].join('§');
-  return signatureOf(type,r);
-}
 /* نقاط الأولوية: اللي له ID من الشيت والسبب متسجل فيه هو الأكمل */
 function recScore(type,r){
   let s=0;
@@ -1621,18 +1626,47 @@ function recScore(type,r){
   if(type==='exc'&&String(r.reason||'').trim())s+=2;
   return s;
 }
-/* تنضيف المكررات — يحتفظ بأكمل نسخة ويشيل الباقي */
+/* تنضيف المكرر بشكل آمن:
+   1) سجلين متطابقين بالظبط (بما فيهم السبب) → دمج مع الاحتفاظ بالأكمل
+   2) أكسبشن: نسخة قديمة بدون سبب + نسخة بنفس كل البيانات وسبب واحد → دمج مع نقل السبب والـ ID
+   3) سجلين بأسباب مختلفة → سجلات حقيقية مختلفة — ميدمجش أبدًا */
 function dedupeAll(){
   let removed=0;
   ['exc','emp','prod','tech'].forEach(type=>{
     const arr={exc:exc,emp:emp,prod:prod,tech:tech}[type];
     const best={};const out=[];
     arr.forEach(r=>{
-      const k=dupKeyOf(type,r);
+      const k=signatureOf(type,r);
       if(!(k in best)){best[k]=r;out.push(r);return;}
       removed++;
-      if(recScore(type,r)>recScore(type,best[k])){out[out.indexOf(best[k])]=r;best[k]=r;}
+      const old=best[k];
+      if(recScore(type,r)>recScore(type,old)){
+        if(type==='exc'&&!String(r.reason||'').trim()&&String(old.reason||'').trim())r.reason=old.reason;
+        out[out.indexOf(old)]=r;best[k]=r;
+      }
     });
+    if(type==='exc'){
+      const base={};
+      out.forEach(r=>{
+        const k=[normDate(r.date),String(r.agent||'').trim(),String(r.contact||'').trim(),String(r.mobileType||'').trim(),String(r.issue||'').trim(),String(r.exctype||'').trim(),String(+r.amount||0),String(r.desc||'').trim()].join('§');
+        (base[k]=base[k]||[]).push(r);
+      });
+      Object.keys(base).forEach(k=>{
+        const g=base[k];
+        if(g.length<2)return;
+        const reasons=[...new Set(g.map(r=>String(r.reason||'').trim()).filter(Boolean))];
+        if(reasons.length>1)return; /* أسباب مختلفة = سجلات مختلفة */
+        let keep=g[0];
+        g.forEach(r=>{if(recScore(type,r)>recScore(type,keep))keep=r;});
+        if(reasons.length===1&&!String(keep.reason||'').trim())keep.reason=reasons[0];
+        g.forEach(r=>{
+          if(r===keep)return;
+          if(r._synced&&r.id&&(!keep._synced||!keep.id)){keep._synced=true;keep.id=r.id;}
+          removed++;
+          const i=out.indexOf(r);if(i>-1)out.splice(i,1);
+        });
+      });
+    }
     if(out.length!==arr.length){exc=type==='exc'?out:exc;emp=type==='emp'?out:emp;prod=type==='prod'?out:prod;tech=type==='tech'?out:tech;}
   });
   return removed;
